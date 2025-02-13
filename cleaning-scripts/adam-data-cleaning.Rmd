@@ -1,0 +1,194 @@
+---
+title: "Cleaning Script"
+author: "Adam Bushman"
+output:
+    html_document:
+        self_contained: true
+---
+
+
+# Introduction
+
+Below is my implementation of the data cleaning logic needed for the Capstone #3, Swire Coca-Cola data. This logic will accomplish the following objectives
+
+*   Combine all files into a single dataset
+*   Standardize column names, data types, and values
+*   Unnest data formatted improperly for ingestion
+*   Tackle "data enrichment" steps, like new columns
+
+
+
+# Libraries & Data
+
+We'll get started by loading core libraries and the necessary data.
+
+```{r}
+library('tidyverse')
+library('janitor')
+library('stringr')
+
+
+cust_addr <- read.csv('data/customer_address_and_zip_mapping.csv')
+cust_profile <- read.csv('data/customer_profile.csv')
+delivery_cost <- readxl::read_xlsx('data/delivery_cost_data.xlsx')
+transactions <- data.table::fread('data/transactional_data.csv')
+```
+
+
+# Cleaning Steps
+
+## Step 1
+
+>   Prep the `cost data` object
+
+```{r}
+delivery_cost_expanded <- 
+    delivery_cost |>
+    # Split the volume range into an object
+    mutate(
+        range_obj = purrr::map(`Vol Range`, str_split, " - ")
+    ) |>
+    # Unnest the object for individual reference
+    unnest(range_obj) |>
+    unnest_wider(range_obj, names_sep = "_") |>
+    # Handle the "1350+" scenario
+    mutate(
+        min_vol = purrr::map_chr(range_obj_1, str_replace, "\\+", ""), 
+        max_vol  = ifelse(is.na(range_obj_2), (2^31) - 1, range_obj_2)
+    ) |>
+    # Turn volumes from charaters to integers
+    mutate(
+        across(min_vol:max_vol, as.integer)
+    ) |>
+    # Drop irrelevant columns
+    select(-c(range_obj_1, range_obj_2, `Vol Range`))
+```
+
+```{r}
+annual_cust_volume <-
+    # Take transaction level data
+    transactions |>
+    # Bring in the customer profile for the `Cold Drink Channel`
+    inner_join(
+        cust_profile, 
+        join_by(CUSTOMER_NUMBER)
+    ) |>
+    # Get annual cases/gallons by customer
+    group_by(YEAR, CUSTOMER_NUMBER, COLD_DRINK_CHANNEL) |>
+    summarise(
+        annual_cases = sum(DELIVERED_CASES), 
+        annual_gallons = sum(DELIVERED_GALLONS), 
+        .groups = "drop"
+    )
+```
+
+```{r}
+delivery_cost_tiers <-
+    annual_cust_volume |>
+    left_join(
+        delivery_cost_expanded |> filter(`Applicable To` != 'Fountain'), 
+        join_by(COLD_DRINK_CHANNEL == `Cold Drink Channel`, annual_cases >= min_vol, annual_cases <= max_vol)
+    ) |>
+    left_join(
+        delivery_cost_expanded |> filter(`Applicable To` == 'Fountain'), 
+        join_by(COLD_DRINK_CHANNEL == `Cold Drink Channel`, annual_gallons >= min_vol, annual_gallons <= max_vol), 
+        suffix = c(".c", ".g")
+    ) |>
+    select(
+        YEAR, CUSTOMER_NUMBER, 
+        case_delivery_cost = `Median Delivery Cost.c`, 
+        gallon_delivery_cost = `Median Delivery Cost.g`
+    )
+```
+
+
+## Step 2
+
+>   Prep the `customer_address` object
+
+```{r}
+cust_addr_expanded <-
+    cust_addr |>
+    # Split the full address into an object
+    mutate(
+        addr_obj = purrr::map(full.address, str_split, ",")
+    ) |>
+    # Unnest the object for individual reference
+    unnest(addr_obj) |>
+    unnest_wider(addr_obj, names_sep = "_") |>
+    # Pad the zip code with leading zeros and make a character
+    mutate(
+        zip = str_pad(zip, 5, "left", pad = "0")
+    ) |>
+    # Rename columns
+    rename(
+        city = addr_obj_2, 
+        state = addr_obj_3, 
+        state_abbr = addr_obj_4, 
+        county = addr_obj_5, 
+        lat = addr_obj_7, 
+        lon = addr_obj_8
+    ) |>
+    # Turn lat/lon values to numeric
+    mutate(
+        across(lat:lon, as.numeric)
+    ) |>
+    # Drop irrelevant columns
+    select(-c(full.address, addr_obj_1, addr_obj_6))
+```
+
+
+## Step 3
+
+>   Combine data
+
+```{r}
+combined_data_raw <-
+    # Take transactions
+    transactions |>
+    # Join the customer profile data thereto
+    inner_join(
+        cust_profile |> mutate(zip = str_pad(
+            ZIP_CODE, 5, "left", "0"
+        )), 
+        join_by(CUSTOMER_NUMBER)
+    ) |>
+    # Join the customer address data thereto
+    inner_join(
+        cust_addr_expanded, 
+        join_by(zip)
+    ) |>
+    # Join the delivery cost tiers data thereto
+    inner_join(
+        delivery_cost_tiers, 
+        join_by(YEAR, CUSTOMER_NUMBER)
+    )
+```
+
+
+## Step 4
+
+>   Name and Data Type standardization
+
+```{r}
+combined_data_std <- 
+    # Take the combined data from above
+    combined_data_raw |>
+    # Standardize the names
+    clean_names() |>
+    # Standardize data types
+    mutate(
+        # Convert charater dates to date types
+        across(c(transaction_date, first_delivery_date, on_boarding_date), lubridate::mdy), 
+        # Turn IDs into characters
+        across(c(customer_number, primary_group_number), as.character), 
+        # Turn finite categorical fields into factors
+        across(
+            c(cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, state, state_abbr), 
+            as.factor
+        )
+    ) |>
+    # Remove irrelevant columns
+    select(-c(zip_code))
+```
+
