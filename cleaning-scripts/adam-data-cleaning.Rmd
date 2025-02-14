@@ -166,7 +166,7 @@ combined_data_raw <-
 ```
 
 
-## Step 4
+## Step 4 & 5
 
 >   Name and Data Type standardization
 
@@ -184,7 +184,7 @@ combined_data_std <-
         across(c(customer_number, primary_group_number), as.character), 
         # Turn finite categorical fields into factors
         across(
-            c(cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, state, state_abbr), 
+            c(order_type, cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, state, state_abbr), 
             as.factor
         )
     ) |>
@@ -192,3 +192,58 @@ combined_data_std <-
     select(-c(zip_code))
 ```
 
+
+## Step 6 & 7
+
+>   Handle "negative" delivery values (interpreted as returns). Generate new fields
+
+```{r}
+swire_data_full <-
+    combined_data_std |>
+    # Add new fields
+    mutate(
+        # Calculate delivered gallons cost
+        # Assume a return is only half as costly as a normal delivery
+        delivered_gallons_cost = case_when(
+            delivered_gallons < 0 ~ -1 * delivered_gallons * gallon_delivery_cost / 2, 
+            TRUE ~ delivered_gallons * gallon_delivery_cost
+        ), 
+        # Calculate delivered case cost
+        # Assume a return is only half as costly as a normal delivery
+        delivered_cases_cost = case_when(
+            delivered_cases < 0 ~ -1 * delivered_cases * case_delivery_cost / 2, 
+            TRUE ~ delivered_cases * case_delivery_cost
+        )
+    ) |>
+    group_by(year, primary_group_number) |>
+    mutate(
+        # Calculate number of customers belonging to each primary group by year
+        primary_group_customers = ifelse(is.na(primary_group_number), 0, n_distinct(customer_number))
+    ) |>
+    group_by(year, customer_number) |>
+    mutate(
+        # Calculate how often a customer issues a return each year
+        return_frequency = sum(ifelse(delivered_cases < 0 | delivered_gallons < 0, 1, 0))
+    ) |>
+    # Drop select columns that are no longer relevant
+    select(-c(gallon_delivery_cost, case_delivery_cost)) |>
+    # Order the columns logically
+    select(
+        # CUSTOMER PROFILE ITEMS
+        customer_number, primary_group_number, primary_group_customers, 
+        on_boarding_date, first_delivery_date, cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, local_market_partner, co2_customer, city, zip, state, state_abbr, county, lat, lon, 
+        
+        # TRANSACTION DETAILS
+        transaction_date, week, year, order_type, 
+        ordered_cases, loaded_cases, delivered_cases, delivered_cases_cost, 
+        ordered_gallons, loaded_gallons, delivered_gallons, delivered_gallons_cost, 
+        return_frequency
+    )
+```
+
+
+# Final Review
+
+```{r}
+glimpse(swire_data_full)
+```
