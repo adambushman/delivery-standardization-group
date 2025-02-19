@@ -9,8 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Load
-```{r}
+# Load Packages & Import Data
+```{r Load Packages & Import Data}
 
 # Load necessary libraries
 library(dplyr)
@@ -21,18 +21,33 @@ library(stringr)
 
 list.files()
 getwd()
-file.exists("customer_address_and_zip_mapping.csv")
-file.exists("customer_profile.csv")
-file.exists("delivery_cost_data.csv")
-file.exists("transactional_data.csv")
+setwd("C:/Users/Tyler.Swanson/OneDrive - PDQ.com/Documents/University of Utah - MSBA/Spring 2025/IS 6813 - MSBA Capstone Case Comp/Swire Data/delivery-standardization-group/")
 
-customer_address_and_zip_mapping <- read.csv("customer_address_and_zip_mapping.csv", stringsAsFactors = FALSE)
+# file.exists("customer_address_and_zip_mapping.csv")
+file.exists("C:/Users/Tyler.Swanson/OneDrive - PDQ.com/Documents/University of Utah - MSBA/Spring 2025/IS 6813 - MSBA Capstone Case Comp/Swire Data/delivery-standardization-group/customer_address_and_zip_mapping.csv")
 
-customer_profile <- read.csv("customer_profile.csv", stringsAsFactors = FALSE)
+# file.exists("customer_profile.csv")
+file.exists("C:/Users/Tyler.Swanson/OneDrive - PDQ.com/Documents/University of Utah - MSBA/Spring 2025/IS 6813 - MSBA Capstone Case Comp/Swire Data/delivery-standardization-group/customer_profile.csv")
 
-delivery_cost_data <- read.csv("delivery_cost_data.csv", stringsAsFactors = FALSE)
+# file.exists("delivery_cost_data.csv")
+file.exists("C:/Users/Tyler.Swanson/OneDrive - PDQ.com/Documents/University of Utah - MSBA/Spring 2025/IS 6813 - MSBA Capstone Case Comp/Swire Data/delivery-standardization-group/delivery_cost_data.csv")
 
-transactional_data <- read.csv("transactional_data.csv", stringsAsFactors = FALSE)
+# file.exists("transactional_data.csv")
+file.exists("C:/Users/Tyler.Swanson/OneDrive - PDQ.com/Documents/University of Utah - MSBA/Spring 2025/IS 6813 - MSBA Capstone Case Comp/Swire Data/delivery-standardization-group/transactional_data.csv")
+
+
+# customer_address_and_zip_mapping <- read.csv("customer_address_and_zip_mapping.csv", stringsAsFactors = FALSE)
+customer_address_and_zip_mapping <- read.csv("C:/Users/Tyler.Swanson/OneDrive - PDQ.com/Documents/University of Utah - MSBA/Spring 2025/IS 6813 - MSBA Capstone Case Comp/Swire Data/delivery-standardization-group/customer_address_and_zip_mapping.csv")
+
+# customer_profile <- read.csv("customer_profile.csv", stringsAsFactors = FALSE)
+customer_profile <- read.csv("C:/Users/Tyler.Swanson/OneDrive - PDQ.com/Documents/University of Utah - MSBA/Spring 2025/IS 6813 - MSBA Capstone Case Comp/Swire Data/delivery-standardization-group/customer_profile.csv")
+
+# delivery_cost_data <- read.csv("delivery_cost_data.csv", stringsAsFactors = FALSE)
+delivery_cost_data <- read.csv("C:/Users/Tyler.Swanson/OneDrive - PDQ.com/Documents/University of Utah - MSBA/Spring 2025/IS 6813 - MSBA Capstone Case Comp/Swire Data/delivery-standardization-group/delivery_cost_data.csv")
+
+# transactional_data <- read.csv("transactional_data.csv", stringsAsFactors = FALSE)
+transactional_data <- read.csv("C:/Users/Tyler.Swanson/OneDrive - PDQ.com/Documents/University of Utah - MSBA/Spring 2025/IS 6813 - MSBA Capstone Case Comp/Swire Data/delivery-standardization-group/transactional_data.csv")
+
 
 ```
 
@@ -159,6 +174,15 @@ merged_data <- merged_data %>%
   ) %>%
   ungroup()
 
+# Remove duplicate rows based on customer_number, transaction_date, ordered_cases, and ordered_gallons
+# merged_data <- merged_data %>%
+#  distinct(customer_number, transaction_date, ordered_cases, ordered_gallons, .keep_all = TRUE)
+
+# Remove duplicates based on the specified columns
+merged_data <- merged_data %>% 
+  distinct(TRANSACTION_DATE, WEEK, YEAR, CUSTOMER_NUMBER, 
+           ORDERED_CASES, ORDERED_GALLONS, .keep_all = TRUE)
+
 # View merged data
 str(merged_data)
 head(merged_data)
@@ -246,12 +270,44 @@ head(merged_data)
 # Review
 ```{r Review}
 # Show summary of final cleaned dataset
-glimpse(merged_data)
-summary(merged_data)
 
-sum(is.na(merged_data$min_cost_vol))  
-sum(is.na(merged_data$max_cost_vol))  
-sum(is.na(merged_data$median_delivery_cost))  
+Swire_Master_Data <- merged_data
+
+# Remove duplicates based on the specified columns
+Swire_Master_Data <- Swire_Master_Data %>% 
+  distinct(transaction_date, week, year, customer_number, 
+           ordered_cases, loaded_cases, delivered_cases, 
+           ordered_gallons, loaded_gallons, .keep_all = TRUE)
+
+# Check the updated dataset
+# dim(Swire_Master_Data)  # New dimensions after removing duplicates
+head(Swire_Master_Data) # Preview first few rows
+# str(Swire_Master_Data)
+# head(Swire_Master_Data)
+
+
+glimpse(Swire_Master_Data)
+summary(Swire_Master_Data)
+
+sum(is.na(Swire_Master_Data$min_cost_vol))  
+sum(is.na(Swire_Master_Data$max_cost_vol))  
+sum(is.na(Swire_Master_Data$median_delivery_cost))
+
+
+
+# Define file path
+# file_path <- "Swire_Master_Data.csv"
+
+# Export as CSV
+# write.csv(Swire_Master_Data, file = file_path, row.names = FALSE)
+
+# Confirm file creation
+# if (file.exists(file_path)) {
+#   print(paste("File successfully saved at:", file_path))
+# } else {
+#   print("Error: File was not created.")
+# }
+
 
 
 ```
