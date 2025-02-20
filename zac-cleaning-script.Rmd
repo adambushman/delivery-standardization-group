@@ -1,0 +1,91 @@
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(rmarkdown)
+library(dplyr)
+library(lubridate)  
+library(skimr)  
+library(janitor)    
+library(tidyr)
+library(readxl)
+
+mydir <- getwd()
+
+setwd(mydir)
+transactional_data_path <- "C:/Users/Zachary Mendenhall/Desktop/Masters/Capstone/transactional_data.csv"
+transactional_data <- read.csv(transactional_data_path, stringsAsFactors = FALSE)
+
+customer_profile_path <- "C:/Users/Zachary Mendenhall/Desktop/Masters/Capstone/customer_profile.csv"
+customer_profile_data <- read.csv(customer_profile_path, stringsAsFactors = FALSE)
+
+customer_address_and_zip_mapping_path <- "C:/Users/Zachary Mendenhall/Desktop/Masters/Capstone/customer_address_and_zip_mapping.csv"
+customer_address_data <- read.csv(customer_address_and_zip_mapping_path, stringsAsFactors = FALSE)
+
+delivery_cost_data_path <- "C:/Users/Zachary Mendenhall/Desktop/Masters/Capstone/delivery_cost_data.xlsx"
+delivery_cost_data <- read_excel(delivery_cost_data_path)
+
+```
+
+
+```{r, results = "hide", warning=FALSE, message=FALSE}
+
+transactional_df <- transactional_data %>%
+  clean_names() %>%
+  mutate(transaction_date = ymd(transaction_date),
+         customer_number = as.character(customer_number)) %>%
+  group_by(year, customer_number) %>%
+  mutate(annual_gallons = sum(delivered_gallons, na.rm = TRUE)) %>%
+  ungroup()
+
+customer_profile_df <- customer_profile_data %>%
+  clean_names() %>%
+  mutate(first_delivery_date = ymd(first_delivery_date), 
+         on_boarding_date = ymd(on_boarding_date),
+         customer_number = as.character(customer_number),
+         sub_trade_channel = factor(sub_trade_channel),
+         trade_channel = factor(trade_channel),
+         frequent_order_type = factor(frequent_order_type),
+         cold_drink_channel = factor(cold_drink_channel), 
+         zip_code = as.character(zip_code))
+
+customer_address_df <- customer_address_data %>%
+  clean_names() %>% 
+  mutate(zip = as.character(zip)) %>%
+  separate(full_address,
+           into = c("zip_code_dup", "city", "state_name", "state_abbr", "county", "fips_code", "latitude", "longitude"),
+           sep = ",",
+           convert = TRUE) %>%
+  select(-zip_code_dup) %>% 
+  mutate(
+    across(c(city, state_name, state_abbr, county), as.factor),  # Convert to factors
+    fips_code = as.character(fips_code),  # Convert population to integer
+    latitude = as.numeric(latitude),      # Convert latitude to numeric
+    longitude = as.numeric(longitude)     # Convert longitude to numeric
+  )
+
+delivery_cost_df <- delivery_cost_data %>%
+  clean_names() %>%  # Standardize column names
+  mutate(
+    cold_drink_channel = as.factor(cold_drink_channel),
+    vol_range = as.factor(vol_range),
+    applicable_to = as.factor(applicable_to),
+    cost_type = as.factor(cost_type)
+  )
+
+  
+```
+
+```{r, results = "hide", warning=FALSE, message=FALSE}
+# Joining not complete
+#combined_df <- transactional_df %>%
+  #left_join(customer_profile_df, by = "customer_number") %>%
+  #left_join(delivery_cost_df, 
+           # by = c("cold_drink_channel" = "cold_drink_channel")) %>% 
+ # filter(applicable_to == "Fountain",
+         #annual_gallons >= min_cost_vol,
+        # annual_gallons <= max_cost_vol) %>%
+ # left_join(customer_address_df, by = "zip_code")
+
+
+```
+
