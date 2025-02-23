@@ -39,7 +39,7 @@ delivery_cost <- delivery_cost %>%
 ```{r}
 # separate full customer address
 customer_address <- customer_address %>%
-  separate(full_address, into = c("zip", "city", "state", "state_abbr", "county", "region", "lat", "lon"), sep = ",", convert = TRUE)
+  separate("full address", into = c("zip", "city", "state", "state_abbr", "county", "region", "lat", "lon"), sep = ",", convert = TRUE)
 ```
 
 
@@ -131,15 +131,20 @@ neg_deliveries <- joined_data_with_cost %>%
 # number of customers per primary customer group
 customers_by_group <- joined_data_with_cost %>%
   group_by(primary_group_number, year) %>%
-  summarize(num_customers = n())
+  mutate(num_customers = n()) %>% # Adds a column to the original data set respecting the grouping
+  ungroup() # Remove the grouping
+
+## customers_by_group <- joined_data_with_cost %>%
+  ## group_by(primary_group_number, year) %>%
+  ## summarize(num_customers = n())
 
 # join returns with rest of data
 joined_data_with_cost <-
   left_join(joined_data_with_cost, neg_deliveries, by = c("customer_number", "year"))
 
 # join number of customers with the rest of the data
-joined_data_with_cost <-
-  left_join(joined_data_with_cost, customers_by_group, by = c("primary_group_number", "year"))
+## joined_data_with_cost <-
+  ## left_join(joined_data_with_cost, customers_by_group, by = c("primary_group_number", "year"))
 
 # replace NAs with 0
 joined_data_with_cost <- joined_data_with_cost %>%
