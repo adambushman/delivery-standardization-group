@@ -1,12 +1,448 @@
 ---
-title: "Cleaning Script"
+title: "Exploratory Data Analysis | Swire Coca-Cola Capstone Project "
+subtitle: "IS 6813-001, Spring 2025 | Group 3"
 author:
   - Adam Bushman
   - Georgia Christodoulou
   - Tyler Swanson
   - Zac Mendenhall
+date: "2/23/2025"
 output:
     html_document:
+        theme: simplex
         self_contained: true
+        embed-resources: true
+toc: true
 ---
 
+![](swire-banner.png)
+
+
+## Business Problem Statement
+
+Regional beverage bottler Swire Coca-Cola (SCCU) relies on two business models: 1) “Red Truck”, which features high-volume customers serviced personally by Swire, and 2) “White Truck” or “Alternate Route to Market”, which entails smaller customers serviced by a third-party distributor.
+
+Swire’s current segmenting strategy has led to misallocation of resources, inflated expenses, and missed opportunities from clients with high-growth potential. Swire aims to better algin their customers with the business proposition of these models by identifying customer characteristics and  rdering behavior that better determines the right business model for the long-term relationship.
+
+
+## EDA Introduction
+
+In this exploratory data analysis (EDA) notebook, we assess the quality of the provided data, detail the data cleaning processes undertaken, define our success metrics, and outline the key questions driving our analysis. By examining customer characteristics and ordering behaviors, we aim to realign Swire’s customer segmentation with the strategic propositions of their two distribution models, ultimately enabling a more effective long-term relationship strategy.
+
+
+## File Investigation
+
+### Libraries & Data
+
+We begin by setting up our session with the necessary libraries and data provided by Swire. These will be referenced often throughout this document.
+
+```{r warning = FALSE, message = FALSE}
+
+# Load libraries for EDA
+library('tidyverse')
+library('gt')
+library('skimr')
+library('janitor')
+library('psych')
+library('stringr')
+library('lubridate')
+
+# Read files into session
+transactions <- as.data.frame(data.table::fread("data/transactional_data.csv"))
+customer_address <- read.csv("data/customer_address_and_zip_mapping.csv")
+customer_profile <- read.csv("data/customer_profile.csv")
+delivery_cost <- readxl::read_xlsx('data/delivery_cost_data.xlsx')
+
+```
+
+
+### Files from Swire
+
+Swire Coca-Cola provided us with four (4) files we can use for the project. These include:
+
+```{r echo = FALSE}
+gt(tibble(
+  file = c(
+    "transactional_data", "customer_address_and_zip_mapping", "customer_profile", "delivery_cost_data"
+  ), 
+  description = c(
+    "This dataset records detailed transactional information, including order quantities and delivery metrics.", 
+    "This dataset maps ZIP codes to full address information.", 
+    "This dataset provides detailed information about customers, including onboarding and purchasing behavior.", 
+    "This dataset describes the median 'per gallon/case' cost of delivery according to annual order volume and custoemr profile."
+  ), 
+  format = c(".csv", ".csv", ".csv", ".xlsx"), 
+  colnum = c(11, 2, 11, 5), 
+  rownum = c(1045540, 1801, 30478, 160)
+)) |>
+  cols_label(
+    file = "Name", 
+    description = "Description", 
+    format = "Format", 
+    colnum = "Columns", 
+    rownum = "Rows"
+  ) |>
+  cols_align(
+    align = "center", 
+    columns = c("format", "colnum", "rownum")
+  ) |>
+  fmt_number(
+    columns = c("colnum", "rownum"), 
+    decimals = 0
+  ) |>
+  tab_options(
+    column_labels.background.color = "#cd0720", 
+  )
+```
+
+Let's take a peak at each of these in turn. We'll remark on:
+
+1. Completeness (how many data are missing)
+2. Data types (are fields properly formatted for analysis)
+3. Distribution (how values are spread out)
+4. Potential wrangling (what we can do for improving data set quality)
+
+
+#### `transactional_data.csv`
+
+```{r}
+skim(transactions)
+```
+
+```{r}
+glimpse(transactions)
+```
+
+**<span style="color:#cd0720">Completeness</span>**
+
+The data are fully complete; there's not a single column with missing or empty values.
+
+**<span style="color:#cd0720">Data Types</span>**
+
+We have a fair mix of data types, though some are improperly casted. Indentifiers like `CUSOTMER_NUMBER` shouldn't be continuous, and dates like `TRANSACTION_DATE` can be enriched with a date/datetime format.
+
+**<span style="color:#cd0720">Distribution</span>**
+
+The shape of the data seen is quite skewed: most all of the volume columns are highly skewed right (meaning most transactions are small). We do see some "negative" delivery volumes, which we are to understand as returns.
+
+**<span style="color:#cd0720">Potential Wrangling</span>**
+
+This data set will benefit most from proper data types. Additionally, we can determine (for each customer) how often they see returned transactions (a potentially helpful indicator for client quality).
+
+
+We don't yet have a good sense for 1) the breadth of data longitudinally and 2) what order types exist. Let's solve these with some basic visualizations.
+
+```{r}
+transactions |>
+  mutate(
+    TRANSACTION_DATE = lubridate::mdy(TRANSACTION_DATE)
+  ) |>
+  group_by(TRANSACTION_DATE) |>
+  count() |>
+  ungroup() |>
+
+  ggplot(
+      aes(TRANSACTION_DATE, n)
+    ) +
+    geom_line() +
+    geom_smooth() +
+    scale_x_date()
+```
+
+There's obviously high variability in the number of transactions per day, but we are seeing a smoothing where the average day per week sees a transaction volume between 1,000 and 2,000. Additionally, it's clear we have two (2) years of transactions: 2023 & 2024.
+
+```{r}
+order_types <- 
+  transactions |>
+  group_by(ORDER_TYPE) |>
+  count() |>
+  ungroup() |>
+  mutate(perc = n / sum(n)) |>
+  arrange(n)
+
+order_types$ORDER_TYPE = factor(order_types$ORDER_TYPE, levels = order_types$ORDER_TYPE)
+
+  ggplot(
+      order_types, 
+      aes(n, ORDER_TYPE, label = scales::percent_format()(perc))
+    ) +
+    geom_col() +
+    geom_text(
+      aes(hjust = ifelse(n < 1e5, -0.1, 1.1))
+    )
+```
+
+Okay, we now see there's 6 unique types and some values that indicate `null`. That appears to be a text "null" so that's an opportunity to clean up. There's clearly 3 order types of largest interest:
+
+* MYCOKE LEGACY
+* CALL CENTER
+* SALES REP
+
+
+#### `customer_address_and_zip_mapping.csv`
+
+```{r}
+skim(customer_address)
+```
+
+```{r}
+glimpse(customer_address)
+```
+
+**<span style="color:#cd0720">Completeness</span>**
+
+**<span style="color:#cd0720">Data Types</span>**
+
+**<span style="color:#cd0720">Distribution</span>**
+
+**<span style="color:#cd0720">Potential Wrangling</span>**
+
+
+#### `customer_profile.csv`
+
+```{r}
+skim(customer_profile)
+```
+
+```{r}
+glimpse(customer_profile)
+```
+
+
+#### `delivery_cost_data.xlsx`
+
+```{r}
+skim(delivery_cost)
+```
+
+```{r}
+glimpse(delivery_cost)
+```
+
+
+## Data Wrangling
+
+Having explored the files individual and making not of important details, we can now move on to wrangling these data into a single object, suitable for the more in-depth analysis upcoming. This wrangling will comprise of:
+
+* Prep individual files for level-of-detail
+* Combining the four (4) individual files we collected
+* Standardizing column names
+* Developing a theory for ordering said columns
+* Casting fields to their proper data types
+* Derived columns that further describe customer profiles
+* Settle on transactional level data with appropriate cost estimates
+* Etc.
+
+
+### Prepping the Cost Data
+
+```{r}
+delivery_cost_expanded <- 
+    delivery_cost |>
+    # Split the volume range into an object
+    mutate(
+        range_obj = purrr::map(`Vol Range`, str_split, " - ")
+    ) |>
+    # Unnest the object for individual reference
+    unnest(range_obj) |>
+    unnest_wider(range_obj, names_sep = "_") |>
+    # Handle the "1350+" scenario
+    mutate(
+        min_vol = purrr::map_chr(range_obj_1, str_replace, "\\+", ""), 
+        max_vol  = ifelse(is.na(range_obj_2), (2^31) - 1, range_obj_2)
+    ) |>
+    # Turn volumes from charaters to integers
+    mutate(
+        across(min_vol:max_vol, as.integer)
+    ) |>
+    # Drop irrelevant columns
+    select(-c(range_obj_1, range_obj_2, `Vol Range`))
+```
+
+```{r}
+annual_cust_volume <-
+    # Take transaction level data
+    transactions |>
+    # Bring in the customer profile for the `Cold Drink Channel`
+    inner_join(
+        customer_profile, 
+        join_by(CUSTOMER_NUMBER)
+    ) |>
+    # Get annual cases/gallons by customer
+    group_by(YEAR, CUSTOMER_NUMBER, COLD_DRINK_CHANNEL) |>
+    summarise(
+        annual_cases = sum(DELIVERED_CASES), 
+        annual_gallons = sum(DELIVERED_GALLONS), 
+        .groups = "drop"
+    )
+```
+
+```{r}
+delivery_cost_tiers <-
+    annual_cust_volume |>
+    left_join(
+        delivery_cost_expanded |> filter(`Applicable To` != 'Fountain'), 
+        join_by(COLD_DRINK_CHANNEL == `Cold Drink Channel`, annual_cases >= min_vol, annual_cases <= max_vol)
+    ) |>
+    left_join(
+        delivery_cost_expanded |> filter(`Applicable To` == 'Fountain'), 
+        join_by(COLD_DRINK_CHANNEL == `Cold Drink Channel`, annual_gallons >= min_vol, annual_gallons <= max_vol), 
+        suffix = c(".c", ".g")
+    ) |>
+    select(
+        YEAR, CUSTOMER_NUMBER, 
+        case_delivery_cost = `Median Delivery Cost.c`, 
+        gallon_delivery_cost = `Median Delivery Cost.g`
+    )
+
+# Take a peek
+head(delivery_cost_tiers)
+```
+
+
+### Prep the Customer Address Object
+
+```{r}
+cust_addr_expanded <-
+    customer_address |>
+    # Split the full address into an object
+    mutate(
+        addr_obj = purrr::map(full.address, str_split, ",")
+    ) |>
+    # Unnest the object for individual reference
+    unnest(addr_obj) |>
+    unnest_wider(addr_obj, names_sep = "_") |>
+    # Pad the zip code with leading zeros and make a character
+    mutate(
+        zip = str_pad(zip, 5, "left", pad = "0")
+    ) |>
+    # Rename columns
+    rename(
+        city = addr_obj_2, 
+        state = addr_obj_3, 
+        state_abbr = addr_obj_4, 
+        county = addr_obj_5, 
+        lat = addr_obj_7, 
+        lon = addr_obj_8
+    ) |>
+    # Turn lat/lon values to numeric
+    mutate(
+        across(lat:lon, as.numeric)
+    ) |>
+    # Drop irrelevant columns
+    select(-c(full.address, addr_obj_1, addr_obj_6))
+```
+
+
+### Combine Individual Files
+
+```{r}
+combined_data_raw <-
+    # Take transactions
+    transactions |>
+    # Join the customer profile data thereto
+    inner_join(
+        customer_profile |> mutate(zip = str_pad(
+            ZIP_CODE, 5, "left", "0"
+        )), 
+        join_by(CUSTOMER_NUMBER)
+    ) |>
+    # Join the customer address data thereto
+    inner_join(
+        cust_addr_expanded, 
+        join_by(zip)
+    ) |>
+    # Join the delivery cost tiers data thereto
+    inner_join(
+        delivery_cost_tiers, 
+        join_by(YEAR, CUSTOMER_NUMBER)
+    )
+```
+
+
+### Standardize Names & Data Types
+
+```{r}
+combined_data_std <- 
+    # Take the combined data from above
+    combined_data_raw |>
+    # Standardize the names
+    clean_names() |>
+    # Standardize data types
+    mutate(
+        # Convert charater dates to date types
+        across(c(transaction_date, first_delivery_date, on_boarding_date), lubridate::mdy), 
+        # Turn IDs into characters
+        across(c(customer_number, primary_group_number), as.character), 
+        # Turn finite categorical fields into factors
+        across(
+            c(order_type, cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, state, state_abbr), 
+            as.factor
+        )
+    ) |>
+    # Remove irrelevant columns
+    select(-c(zip_code))
+```
+
+
+### Enrich Dataset with New Fields
+
+```{r}
+swire_data_full <-
+    combined_data_std |>
+    # Add new fields
+    mutate(
+        # Calculate delivered gallons cost
+        # Assume a return is only half as costly as a normal delivery
+        delivered_gallons_cost = case_when(
+            delivered_gallons < 0 ~ -1 * delivered_gallons * gallon_delivery_cost / 2, 
+            TRUE ~ delivered_gallons * gallon_delivery_cost
+        ), 
+        # Calculate delivered case cost
+        # Assume a return is only half as costly as a normal delivery
+        delivered_cases_cost = case_when(
+            delivered_cases < 0 ~ -1 * delivered_cases * case_delivery_cost / 2, 
+            TRUE ~ delivered_cases * case_delivery_cost
+        )
+    ) |>
+    group_by(year, primary_group_number) |>
+    mutate(
+        # Calculate number of customers belonging to each primary group by year
+        primary_group_customers = ifelse(is.na(primary_group_number), 0, n_distinct(customer_number))
+    ) |>
+    group_by(year, customer_number) |>
+    mutate(
+        # Calculate how often a customer issues a return each year
+        return_frequency = sum(ifelse(delivered_cases < 0 | delivered_gallons < 0, 1, 0))
+    ) |>
+    ungroup() |>
+    # Drop select columns that are no longer relevant
+    select(-c(gallon_delivery_cost, case_delivery_cost)) |>
+    # Order the columns logically
+    select(
+        # CUSTOMER PROFILE ITEMS
+        customer_number, primary_group_number, primary_group_customers, 
+        on_boarding_date, first_delivery_date, cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, local_market_partner, co2_customer, city, zip, state, state_abbr, county, lat, lon, 
+        
+        # TRANSACTION DETAILS
+        transaction_date, week, year, order_type, 
+        ordered_cases, loaded_cases, delivered_cases, delivered_cases_cost, 
+        ordered_gallons, loaded_gallons, delivered_gallons, delivered_gallons_cost, 
+        return_frequency
+    )
+```
+
+### Final Data Set
+
+```{r}
+glimpse(swire_data_full)
+```
+
+Now, we have a single, standardized data set that is enriched, properly formatted, and well-suited to the remaining analysis.
+
+
+## Data Exploration
+
+
+
+# Conclusion
