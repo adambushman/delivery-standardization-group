@@ -1,0 +1,12 @@
+---
+title: "Cleaning Script"
+author:
+  - Adam Bushman
+  - Georgia Christodoulou
+  - Tyler Swanson
+  - Zac Mendenhall
+output:
+    html_document:
+        self_contained: true
+---
+
