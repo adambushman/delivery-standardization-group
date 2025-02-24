@@ -55,7 +55,7 @@ library('readxl')     # Read Excel files
 library('ggplot2')    # Data visualization
 library('readr')      # Read/write CSV & text files
 library('knitr')      # Generate dynamic reports
-library('leaflet')
+library('leaflet')    # Generate dynamic map
 
 
 # Read files into session
@@ -304,7 +304,7 @@ swire_map <-
 swire_map
 ```
 
-Okay, we're seeing customers largely in Kansas, Kentucky, and Maryland, with some in Louisiana. It's not understood to what extent, if any, this geographic will hold value in a more optimized delivery model solution for Swire, but we'll ensure the data are wrangled properly regardless.
+Okay, we're seeing customers largely in Kansas, Kentucky, Maryland, and Massachusetts, with some in Louisiana. It's not understood to what extent, if any, this geographic will hold value in a more optimized delivery model solution for Swire, but we'll ensure the data are wrangled properly regardless.
 
 
 #### `customer_profile.csv`
@@ -609,7 +609,11 @@ swire_data_full <-
         delivered_cases_cost = case_when(
             delivered_cases < 0 ~ -1 * delivered_cases * case_delivery_cost / 2, 
             TRUE ~ delivered_cases * case_delivery_cost
-        )
+        ),
+        # Create 'total' columns representing the sum of gallons & cases
+        ordered_total = ordered_gallons + ordered_cases, 
+        loaded_total = loaded_gallons + loaded_cases, 
+        delivered_total = delivered_gallons + delivered_cases, 
     ) |>
     group_by(year, primary_group_number) |>
     mutate(
@@ -634,6 +638,7 @@ swire_data_full <-
         transaction_date, week, year, order_type, 
         ordered_cases, loaded_cases, delivered_cases, delivered_cases_cost, 
         ordered_gallons, loaded_gallons, delivered_gallons, delivered_gallons_cost, 
+        ordered_total, loaded_total, delivered_total, 
         return_frequency
     )
 ```
@@ -650,7 +655,7 @@ Now, we have a single, standardized data set that is enriched, properly formatte
 ## Data Exploration
 
 ### Order Type
-=======
+
 In the table below, I calculated the fulfillment rate for various customers. The fulfillment rate is defined as total delivered cases divided by total ordered cases.
 
 * A fulfillment rate of 1 means the customer receives exactly what they order.
@@ -689,7 +694,10 @@ filtered_fulfillment_rates <- swire_data_full %>%
   arrange(desc(fulfillment_rate))
 
 # Display the filtered table
-kable(filtered_fulfillment_rates, caption = "Fulfillment Rates for Selected Customers")
+gt(filtered_fulfillment_rates) |>
+  tab_header(
+    title = "Fulfillment Rates for Selected Customers"
+  )
 
 ```
 
@@ -702,7 +710,7 @@ are consistently lower.
 # Aggregate data to calculate the average total ordered per trade channel
 top_trade_channels <- swire_data_full %>%
  group_by(trade_channel) %>%
- summarise(AVG_TOTAL_ORDERED = mean(total_ordered, na.rm = TRUE)) %>%
+ summarise(AVG_TOTAL_ORDERED = mean(ordered_total, na.rm = TRUE)) %>%
  arrange(desc(AVG_TOTAL_ORDERED)) %>%
  slice_head(n = 20) # Select top 10 trade channels
 # Create bar plot
@@ -834,4 +842,166 @@ swire_data_full %>%
   labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
 ```
 
+
+### C02 Customer
+
+CO2 customers are an interesting subset of the data. We can look at customers who purchase fountain products (i.e.e "ordered_gallons") and compare their distribution across CO2 customer status and even adjust for local market partner status.
+
+```{r}
+swire_data_full |>
+  group_by(co2_customer, customer_number, local_market_partner) |>
+  summarise(total = sum(ordered_gallons)) |>
+  ungroup() |>
+  filter(total > 0) |>
+
+  ggplot(
+    aes(x = local_market_partner, total)
+  ) +
+    geom_boxplot(color = swire_colors$red) +
+    scale_y_log10() +
+    facet_wrap(~co2_customer) +
+    labs(
+      title = "Distribution of Total Volume Among 'Fountain' Products", 
+      subtitle = "Grouped by status as a CO2 customer", 
+      x = "Local Market Partner?"
+    ) +
+    theme_swire() +
+    theme(
+      axis.title.y = element_blank()
+    )
+```
+
+Among those order fountain products, we really aren't seeing any measurable difference. There's subtlties in the outliers but non-CO2 customers are meaningfully different in order volume. Even adjusting for `local_market_partner` isn't demonstrating any meaningful pattern.
+
+
+### Customer Tenure
+
+An interesting component to this analysis is varying levels of tenure, where some customers are "new" (their first order in the time window) while others having been customers for ages. We can look at order volume by tenure (years) for any patterns.
+
+
+```{r}
+
+swire_data_full |>
+  group_by(customer_number) |>
+  summarise(
+    tenure_years = floor(max(as.integer(transaction_date - on_boarding_date) / 365)), 
+    total = sum(ordered_total)
+  ) |>
+  ungroup() |>
+  mutate(tenure_years = as.factor(tenure_years)) |>
+
+  ggplot(
+    aes(tenure_years, total)
+  ) +
+    geom_boxplot(color = swire_colors$red) +
+    scale_x_discrete() +
+    scale_y_log10() +
+    labs(
+      title = "Distribution of Total Volume", 
+      subtitle = "Organized by tenure and order type"
+    ) +
+    theme_swire()
+```
+
+Predictably, customers with less tenure than our two (2) year window will have less than others. There also appears to be many outliers during the initial years of tenure. Later on, however, there's more variability in the IQR. We can expand this even more by introducing another variable and simplifying to tenure bins.
+
+```{r}
+swire_data_full |>
+  group_by(customer_number, cold_drink_channel) |>
+  summarise(
+    tenure_years = floor(max(as.integer(transaction_date - on_boarding_date) / 365)), 
+    total = sum(ordered_total)
+  ) |>
+  ungroup() |>
+  mutate(tenure_years_bin = as.factor(cut(tenure_years, breaks = 4))) |>
+
+  ggplot(
+    aes(tenure_years_bin, total)
+  ) +
+    geom_boxplot(color = swire_colors$red) +
+    scale_y_log10() +
+    facet_wrap(~order_type) +
+    labs(
+      title = "Distribution of Total Volume", 
+      subtitle = "Organized by tenure and order type"
+    ) +
+    theme_swire()
+```
+
+We see here that there really isn't any pattern for time/tenure playing into the equation. We could look at the same for `cold_drink_channel` and the same bears true. It suggests that there's no general trend of time being a factor for increased order volume, even down to sub groups.
+
+
+### Geographic Order Volume
+
+We can also get a sense for concentration of orders by geography. We'll build off of the map we created above but scale the size of the points to the volume of orders.
+
+
+```{r}
+swire_cust_vol <- 
+  swire_data_full |>
+  group_by(customer_number, lon, lat, local_market_partner) |>
+  summarise(total = sum(ordered_total)) |>
+  ungroup() |>
+  mutate(
+    total_scaled = (total / max(total)) * 100
+  )
+```
+
+```{r}
+swire_map_vol <-                                                              
+    leaflet(height = 800, width = 800) |>
+    addTiles() |>
+    setView(lng = mean(swire_cust_vol$lon), lat = mean(swire_cust_vol$lat), zoom = 5) |>
+    addProviderTiles("CartoDB.Positron") |>
+    addCircleMarkers(
+        data = swire_cust_vol,
+        lng = ~lon,
+        lat = ~lat,
+        radius = ~sqrt(total_scaled), 
+        color = ~swire_colors$red, 
+        fillOpacity = 0.15
+    )
+
+swire_map_vol
+```
+
+There are certainly hot beds of more activity than others but there isn't a strong rhyme or reason pattern that's noticed from this view. Better still would be quantifying density to other delivery points and/or to sister franchises. We could use seomthing like the *haversine formula* as a proxy.
+
+
+
 ## Conclusion
+
+This exploratory data analysis (EDA) exercise has established a foundation for our group in some key areas:
+
+1. We are far more familiar with Swire Coca-Cola's business model, data structure, and customer nuances. This will equip us with necessary context for the modeling stage.
+
+2. We have a solid understanding of areas to model and explore more deeply given the lessons learned and findings extracted. This means we'll be more efficient and effective.
+
+3. Our team has yielded "proof of concept" in how we collaborate cognitively (i.e. exploration of ideas) and structurally. This is crucial as the group looks to deliver a powerful solution to Swire Coca-Cola by project end.
+
+During the next phase of the project, Modeling, our team will leverage these insights with more advanced analysis techniques, such as leveraging cluster algorithms, cost savings models, and both temporal and spatial analyses. This is all in the effort to develop a framework for better distinguishing high-growth potential from low-growth customers, offering a framework that improves on the current 400-gallon threshold. 
+
+
+## Division of Work
+
+Formulation of this group EDA was made possible thanks to the collaborative partnership from all group members. 
+
+As a group, we've partnered in the following ways:
+
+* Worked out of a group GitHub repository, following best practices of commits to branches and issuing pull requests, with teammates reviewing, approving, and merging work to `main`.
+
+* Partnered on data wrangling logic, determining how we would clean, standardize, and resolve inherent constraints of the provided data. This was the recipe for individual work described below.
+
+* Consolidated individual work into this document, ensuring thoughtful organization, engaging content, and attractive design. 
+
+
+Each member contributed with individual work as described below:
+
+* Indvidiually, we created a unique EDA document comprised of our own insights through extensive research and time with the data sets.
+
+* Individually, we created a cleaning script adhering to the defined plan as described above. This approach helped ensure all gained valuable programming experience and were intimately familiar with our cleaned data. 
+
+
+Thank you,
+
+Adam, Georgia, Tyler, Zac
