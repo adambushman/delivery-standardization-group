@@ -1,12 +1,44 @@
 ---
-title: "Cleaning Script"
+title: "Exploratory Data Analysis | Swire Coca-Cola Capstone Project "
+subtitle: "IS 6813-001, Spring 2025 | Group 3"
 author:
   - Adam Bushman
   - Georgia Christodoulou
   - Tyler Swanson
   - Zac Mendenhall
+date: "2/23/2025"
 output:
     html_document:
+        theme: simplex
         self_contained: true
+toc: true
 ---
 
+![](swire-banner.png)
+
+
+## Business Problem Statement
+
+Regional beverage bottler Swire Coca-Cola (SCCU) relies on two business models: 1) “Red Truck”, which features high-volume customers serviced personally by Swire, and 2) “White Truck” or “Alternate Route to Market”, which entails smaller customers serviced by a third-party distributor.
+
+Swire’s current segmenting strategy has led to misallocation of resources, inflated expenses, and missed opportunities from clients with high-growth potential. Swire aims to better algin their customers with the business proposition of these models by identifying customer characteristics and  rdering behavior that better determines the right business model for the long-term relationship.
+
+
+## EDA Introduction
+
+In this exploratory data analysis (EDA) notebook, we assess the quality of the provided data, detail the data cleaning processes undertaken, define our success metrics, and outline the key questions driving our analysis. By examining customer characteristics and ordering behaviors, we aim to realign Swire’s customer segmentation with the strategic propositions of their two distribution models, ultimately enabling a more effective long-term relationship strategy.
+
+
+## File Investigation
+
+
+
+## Data Wrangling
+
+
+
+## Data Exploration
+
+
+
+# Conclusion
