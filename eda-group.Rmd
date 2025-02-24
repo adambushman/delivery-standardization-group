@@ -11,6 +11,7 @@ output:
     html_document:
         theme: simplex
         self_contained: true
+        embed-resources: true
 toc: true
 ---
 
@@ -39,6 +40,7 @@ We begin by setting up our session with the necessary libraries and data provide
 
 # Load libraries for EDA
 library('tidyverse')
+library('gt')
 library('skimr')
 library('janitor')
 library('psych')
@@ -58,23 +60,152 @@ delivery_cost <- readxl::read_xlsx('data/delivery_cost_data.xlsx')
 
 Swire Coca-Cola provided us with four (4) files we can use for the project. These include:
 
-```{r}
-
+```{r echo = FALSE}
+gt(tibble(
+  file = c(
+    "transactional_data", "customer_address_and_zip_mapping", "customer_profile", "delivery_cost_data"
+  ), 
+  description = c(
+    "This dataset records detailed transactional information, including order quantities and delivery metrics.", 
+    "This dataset maps ZIP codes to full address information.", 
+    "This dataset provides detailed information about customers, including onboarding and purchasing behavior.", 
+    "This dataset describes the median 'per gallon/case' cost of delivery according to annual order volume and custoemr profile."
+  ), 
+  format = c(".csv", ".csv", ".csv", ".xlsx"), 
+  colnum = c(11, 2, 11, 5), 
+  rownum = c(1045540, 1801, 30478, 160)
+)) |>
+  cols_label(
+    file = "Name", 
+    description = "Description", 
+    format = "Format", 
+    colnum = "Columns", 
+    rownum = "Rows"
+  ) |>
+  cols_align(
+    align = "center", 
+    columns = c("format", "colnum", "rownum")
+  ) |>
+  fmt_number(
+    columns = c("colnum", "rownum"), 
+    decimals = 0
+  ) |>
+  tab_options(
+    column_labels.background.color = "#cd0720", 
+  )
 ```
 
-Let's take a peak at each of these in turn:
+Let's take a peak at each of these in turn. We'll remark on:
+
+1. Completeness (how many data are missing)
+2. Data types (are fields properly formatted for analysis)
+3. Distribution (how values are spread out)
+4. Potential wrangling (what we can do for improving data set quality)
 
 
 #### `transactional_data.csv`
 
+```{r}
+skim(transactions)
+```
+
+```{r}
+glimpse(transactions)
+```
+
+**<span style="color:#cd0720">Completeness</span>**
+
+The data are fully complete; there's not a single column with missing or empty values.
+
+**<span style="color:#cd0720">Data Types</span>**
+
+We have a fair mix of data types, though some are improperly casted. Indentifiers like `CUSOTMER_NUMBER` shouldn't be continuous, and dates like `TRANSACTION_DATE` can be enriched with a date/datetime format.
+
+**<span style="color:#cd0720">Distribution</span>**
+
+The shape of the data seen is quite skewed: most all of the volume columns are highly skewed right (meaning most transactions are small). We do see some "negative" delivery volumes, which we are to understand as returns.
+
+**<span style="color:#cd0720">Potential Wrangling</span>**
+
+This data set will benefit most from proper data types. Additionally, we can determine (for each customer) how often they see returned transactions (a potentially helpful indicator for client quality).
+
+
+We don't yet have a good sense for 1) the breadth of data longitudinally and 2) what order types exist. Let's solve these with some basic visualizations.
+
+```{r}
+transactions |>
+  mutate(
+    TRANSACTION_DATE = lubridate::mdy(TRANSACTION_DATE)
+  ) |>
+  group_by(TRANSACTION_DATE) |>
+  count() |>
+  ungroup() |>
+
+  ggplot(
+      aes(TRANSACTION_DATE, n)
+    ) +
+    geom_line() +
+    geom_smooth() +
+    scale_x_date()
+```
+
+There's obviously high variability in the number of transactions per day, but we are seeing a largely smooth volume between 1,000 and 2,000. Additionally, it's clear we have two (2) years of transactions: 2023 & 2024.
+
+```{r}
+order_types <- 
+  transactions |>
+  group_by(ORDER_TYPE) |>
+  count() |>
+  ungroup() |>
+  mutate(perc = n / sum(n)) |>
+  arrange(n)
+
+order_types$ORDER_TYPE = factor(order_types$ORDER_TYPE, levels = order_types$ORDER_TYPE)
+
+  ggplot(
+      order_types, 
+      aes(n, ORDER_TYPE, label = scales::percent_format()(perc))
+    ) +
+    geom_col() +
+    geom_text(
+      aes(hjust = ifelse(n < 1e5, -0.1, 1.1))
+    )
+```
+
+Okay, we now see there's 6 unique types and some values that indicate `null`. That appears to be a text "null" so that's an opportunity to clean up. There's clearly 3 order types of largest interest:
+
+* MYCOKE LEGACY
+* CALL CENTER
+* SALES REP
+
 
 #### `customer_address_and_zip_mapping.csv`
+
+```{r}
+skim(customer_address)
+```
+
+**<span style="color:#cd0720">Completeness</span>**
+
+**<span style="color:#cd0720">Data Types</span>**
+
+**<span style="color:#cd0720">Distribution</span>**
+
+**<span style="color:#cd0720">Potential Wrangling</span>**
 
 
 #### `customer_profile.csv`
 
+```{r}
+skim(customer_profile)
+```
+
 
 #### `delivery_cost_data.xlsx`
+
+```{r}
+skim(delivery_cost)
+```
 
 
 ## Data Wrangling
