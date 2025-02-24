@@ -443,6 +443,69 @@ Now, we have a single, standardized data set that is enriched, properly formatte
 
 ## Data Exploration
 
+### Order Type
+
+Below we see a graph showing that higher order types (from cases) come from my coke legacy. This could either just be the fact that most sales come from my coke legacy and sales rep or it could provide further information on possible predictions for high growth potential. When we look at just the customers with < 400 volume, call center order type becomes the most common and sales rep falls to third, suggesting that order type could be a valuable characteristic for identifying high growth potential. 
+
+```{r}
+# Aggregate order data by order type
+order_type_summary <- swire_data_full %>%
+  group_by(order_type) %>%
+  summarise(total_cases = sum(ordered_cases, na.rm = TRUE))
+
+# Plot total ordered cases by order type
+ggplot(order_type_summary, aes(x = reorder(order_type, -total_cases), y = total_cases, fill = order_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+
+# Plot total ordered cases by order type for customers with < 400 gallons per year
+swire_data_full %>%
+  group_by(customer_number, order_type) %>%
+  summarize(total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)) %>%
+  filter(total_gallons < 400) %>% 
+  group_by(order_type) %>% 
+  summarize(gallons = sum(total_gallons)) %>%
+  ggplot(aes(x = reorder(order_type, -gallons), y = gallons, fill = order_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  ggtitle("Barplot of Ordered Gallons by Order Type (Customers < 400 Gallons)") +
+  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+```
+
+### Cold Drink Channel
+
+In the graphs below, dining and goods are the main cold drink channels for customers with a volume of less than 400 gallons, while bulk trade and dining dominate for all customers. This could suggest the need for a separate 'dining' cold drink channel analysis to compare characteristics between the two thresholds.
+
+```{r}
+# for all customers
+swire_data_full %>%
+  group_by(cold_drink_channel) %>%
+  summarize(gallons = sum(ordered_gallons + ordered_cases)) %>%
+  ggplot(aes(x = reorder(cold_drink_channel, - gallons), y = gallons, fill = cold_drink_channel)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Barplot of Ordered Gallons by Cold Drink Channel") +
+  labs(x = "Cold Drink Channel", y = "Total Gallons") 
+  
+
+# for customers with < 400 gallons per year
+swire_data_full %>%
+  group_by(customer_number, cold_drink_channel) %>%
+  summarize(total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)) %>%
+  filter(total_gallons < 400) %>% 
+  group_by(cold_drink_channel) %>% 
+  summarize(gallons = sum(total_gallons)) %>%
+  ggplot(aes(reorder(cold_drink_channel, - gallons), y = gallons, fill = cold_drink_channel)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  ggtitle("Ordered Gallons by Cold Drink Channel (Customers < 400 Gallons)") +
+  labs(x = "Cold Drink Channel", y = "Total Gallons")
+```
 
 
 
