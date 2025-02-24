@@ -445,20 +445,22 @@ Now, we have a single, standardized data set that is enriched, properly formatte
 
 ### Order Type
 
-Below we see a graph showing that higher order types (from cases) come from my coke legacy. This could either just be the fact that most sales come from my coke legacy and sales rep or it could provide further information on possible predictions for high growth potential. When we look at just the customers with < 400 volume, call center order type becomes the most common and sales rep falls to third, suggesting that order type could be a valuable characteristic for identifying high growth potential. 
+The graph below indicates that higher order volumes primarily come from MyCoke Legacy. This trend could be attributed to the fact that most sales originate from MyCoke Legacy and Sales Rep orders, or it may suggest a potential link between order type and high-growth potential customers.
+
+When analyzing customers with < 400 volume, Call Center is the most common order type, while Sales Rep orders drop to third place. This shift suggests that order type could be a valuable characteristic for identifying high-growth potential customers, particularly among lower-volume segments. Further analysis could help determine whether order type patterns correlate with customer expansion trends.
 
 ```{r}
 # Aggregate order data by order type
 order_type_summary <- swire_data_full %>%
   group_by(order_type) %>%
-  summarise(total_cases = sum(ordered_cases, na.rm = TRUE))
+  summarise(total_gallons = sum(ordered_cases + ordered_gallons, na.rm = TRUE))
 
 # Plot total ordered cases by order type
-ggplot(order_type_summary, aes(x = reorder(order_type, -total_cases), y = total_cases, fill = order_type)) +
+ggplot(order_type_summary, aes(x = reorder(order_type, -total_gallons), y = total_gallons, fill = order_type)) +
   geom_bar(stat = "identity") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
-  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Gallons")
 
 # Plot total ordered cases by order type for customers with < 400 gallons per year
 swire_data_full %>%
@@ -477,7 +479,7 @@ swire_data_full %>%
 
 ### Cold Drink Channel
 
-In the graphs below, dining and goods are the main cold drink channels for customers with a volume of less than 400 gallons, while bulk trade and dining dominate for all customers. This could suggest the need for a separate 'dining' cold drink channel analysis to compare characteristics between the two thresholds.
+The graphs below indicate that Dining and Goods are the primary cold drink channels for customers with a volume of less than 400 gallons, whereas Bulk Trade and Dining dominate across all customers. This distinction suggests that conducting a separate 'Dining' cold drink channel analysis could be valuable in comparing the characteristics and ordering behaviors between customers below and above the 400-gallon threshold.
 
 ```{r}
 # for all customers
@@ -507,6 +509,54 @@ swire_data_full %>%
   labs(x = "Cold Drink Channel", y = "Total Gallons")
 ```
 
+### Local Market Partners
 
+The table below presents order volume and unit delta from 2023 to 2024 by customer, segmented by trade channel and sub-trade channel. Among the sub-trade channels, Cruises, Online Stores, Bulk Trade, and Comprehensive Providers exhibit higher unit delta year-over-year, indicating strong growth trends.
+
+Additionally, the Fast Casual Dining trade channel stands out with notable year-over-year increases in order volume. This suggests that Fast Casual Dining customers within the local market partner segment could represent less obvious but high-growth potential opportunities, making them a strategic group to explore further.
+
+```{r}
+# year over year changes in gallon volume by customer
+swire_data_full %>%
+  filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
+  group_by(customer_number, year, trade_channel, sub_trade_channel) %>%
+  summarize(gallons = sum(ordered_gallons + ordered_cases)) %>%
+  pivot_wider(names_from = year, values_from = gallons) %>%
+  mutate(unit_delta = (`2024` - `2023`)) %>%
+  arrange(desc(unit_delta))
+```
+
+The graphs below illustrate the distribution of order types among local market partners. Notably, the EDI order type is the most dominant among local market partners. However, among customers with a volume of less than 400 gallons, Call Center and MyMoke360/Legacy orders remain the preferred choices.
+
+While this difference may not seem highly significant, the shift in order type preference for customers with < 400 gallons—both in the local market partner segment and across all customers—could indicate that this variable holds some importance in customer behavior.
+
+```{r}
+# for all local market partner customers
+swire_data_full %>%
+  filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
+  group_by(order_type) %>%
+  summarize(gallons = sum(ordered_gallons + ordered_cases)) %>%
+  ggplot(aes(x = reorder(order_type, -gallons), y = gallons, fill = order_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  ggtitle("Barplot of Ordered Gallons by Order Type") +
+  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+
+# for customers with < 400 gallons per year
+swire_data_full %>%
+  filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
+  group_by(customer_number, order_type) %>%
+  summarize(total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)) %>%
+  filter(total_gallons < 400) %>% 
+  group_by(order_type) %>% 
+  summarize(gallons = sum(total_gallons)) %>%
+  ggplot(aes(x = reorder(order_type, -gallons), y = gallons, fill = order_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  ggtitle("Barplot of Ordered Gallons by Order Type (Customers < 400 Gallons)") +
+  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+```
 
 # Conclusion
