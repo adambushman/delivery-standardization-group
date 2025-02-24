@@ -149,7 +149,7 @@ transactions |>
     scale_x_date()
 ```
 
-There's obviously high variability in the number of transactions per day, but we are seeing a largely smooth volume between 1,000 and 2,000. Additionally, it's clear we have two (2) years of transactions: 2023 & 2024.
+There's obviously high variability in the number of transactions per day, but we are seeing a smoothing where the average day per week sees a transaction volume between 1,000 and 2,000. Additionally, it's clear we have two (2) years of transactions: 2023 & 2024.
 
 ```{r}
 order_types <- 
@@ -185,6 +185,10 @@ Okay, we now see there's 6 unique types and some values that indicate `null`. Th
 skim(customer_address)
 ```
 
+```{r}
+glimpse(customer_address)
+```
+
 **<span style="color:#cd0720">Completeness</span>**
 
 **<span style="color:#cd0720">Data Types</span>**
@@ -200,11 +204,19 @@ skim(customer_address)
 skim(customer_profile)
 ```
 
+```{r}
+glimpse(customer_profile)
+```
+
 
 #### `delivery_cost_data.xlsx`
 
 ```{r}
 skim(delivery_cost)
+```
+
+```{r}
+glimpse(delivery_cost)
 ```
 
 
