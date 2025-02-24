@@ -38,14 +38,20 @@ We begin by setting up our session with the necessary libraries and data provide
 
 ```{r warning = FALSE, message = FALSE}
 
-# Load libraries for EDA
-library('tidyverse')
-library('gt')
-library('skimr')
-library('janitor')
-library('psych')
-library('stringr')
-library('lubridate')
+library('tidyverse')  # Data wrangling & visualization
+library('gt')         # Create professional tables
+library('janitor')    # Clean column names & messy data
+library('psych')      # Descriptive stats & psych research tools
+library('stringr')    # String manipulation
+library('lubridate')  # Handle dates & times
+library('rmarkdown')  # Render R Markdown docs
+library('dplyr')      # Data manipulation (filter, select, mutate, etc.)
+library('skimr')      # Quick summary stats
+library('tidyr')      # Reshape/tidy data
+library('readxl')     # Read Excel files
+library('ggplot2')    # Data visualization
+library('readr')      # Read/write CSV & text files
+library('knitr')      # Generate dynamic reports
 
 # Read files into session
 transactions <- as.data.frame(data.table::fread("data/transactional_data.csv"))
@@ -443,6 +449,73 @@ Now, we have a single, standardized data set that is enriched, properly formatte
 
 ## Data Exploration
 
+In the table below, I calculated the fulfillment rate for various customers. The fulfillment rate is defined as total delivered cases divided by total ordered cases.
+
+* A fulfillment rate of 1 means the customer receives exactly what they order.
+* A fulfillment rate greater than 1 indicates they are being delivered more than they ordered.
+
+It may be worth investigating whether these customers have high return rates or if they consistently receive more than they request. If it's the latter, this pattern could be an indicator of high sales demand.
+
+
+```{r}
+# Calculate fulfillment rates by customer
+fulfillment_rates <- swire_data_full %>%
+  group_by(customer_number) %>%
+  summarise(
+    total_ordered_cases = sum(ordered_cases, na.rm = TRUE),
+    total_delivered_cases = sum(delivered_cases, na.rm = TRUE),
+    fulfillment_rate = ifelse(total_ordered_cases == 0, NA, total_delivered_cases / total_ordered_cases)
+  ) %>%
+  filter(!is.na(fulfillment_rate)) %>%  # Remove rows where fulfillment rate is undefined
+  arrange(desc(fulfillment_rate))
+
+
+
+# Define the customer numbers to keep for table
+selected_customers <- c("501261447", "501563326", "501580838", "501686677", "501483916", "600563579",
+                        "501004189", "501004936", "501006776", "501006936", "501007325", "501007477", "501007757")
+
+# Summarizing the fulfillment rates and filtering the selected customers for table
+filtered_fulfillment_rates <- swire_data_full %>%
+  group_by(customer_number) %>%
+  summarise(
+    total_ordered_cases = sum(ordered_cases, na.rm = TRUE),
+    total_delivered_cases = sum(delivered_cases, na.rm = TRUE),
+    fulfillment_rate = ifelse(total_ordered_cases == 0, NA, total_delivered_cases / total_ordered_cases)
+  ) %>%
+  filter(customer_number %in% selected_customers) %>%  # Keep only the selected customers
+  arrange(desc(fulfillment_rate))
+
+# Display the filtered table
+kable(filtered_fulfillment_rates, caption = "Fulfillment Rates for Selected Customers")
+
+```
+
+The below plot indicates that Travel, Superstore, and Bulk Trade channels have the highest average total ordered, followed by General Activities
+and Academic Institutions. Other trade channels, including Healthcare, Recreation, and Defense, have lower average total
+ordered values. This comparison highlights that specific channels tend to have a very high average total ordered where others
+are consistently lower.
+
+```{r}
+# Aggregate data to calculate the average total ordered per trade channel
+top_trade_channels <- swire_data_full %>%
+ group_by(trade_channel) %>%
+ summarise(AVG_TOTAL_ORDERED = mean(total_ordered, na.rm = TRUE)) %>%
+ arrange(desc(AVG_TOTAL_ORDERED)) %>%
+ slice_head(n = 20) # Select top 10 trade channels
+# Create bar plot
+ggplot(top_trade_channels, aes(x = reorder(trade_channel, -AVG_TOTAL_ORDERED), y = AVG_TOTAL_ORDERED, fill
+= trade_channel)) +
+ geom_bar(stat = "identity", alpha = 0.7, show.legend = FALSE) + # Bar plot without legend
+ labs(
+ title = "Top 10 Trade Channels by Average Total Ordered",
+ x = "Trade Channel",
+ y = "Average Total Ordered"
+ ) +
+ theme_minimal() +
+ theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) # Rotate x-axis labels for readability
+
+```
 
 
 
