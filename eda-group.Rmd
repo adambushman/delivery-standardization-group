@@ -449,8 +449,8 @@ Now, we have a single, standardized data set that is enriched, properly formatte
 
 ## Data Exploration
 
-### Order Type
-=======
+### Fulfillment and Order Frequency
+
 In the table below, I calculated the fulfillment rate for various customers. The fulfillment rate is defined as total delivered cases divided by total ordered cases.
 
 * A fulfillment rate of 1 means the customer receives exactly what they order.
@@ -502,7 +502,7 @@ are consistently lower.
 # Aggregate data to calculate the average total ordered per trade channel
 top_trade_channels <- swire_data_full %>%
  group_by(trade_channel) %>%
- summarise(AVG_TOTAL_ORDERED = mean(total_ordered, na.rm = TRUE)) %>%
+ summarise(AVG_TOTAL_ORDERED = mean(ordered_cases + ordered_gallons, na.rm = TRUE)) %>%
  arrange(desc(AVG_TOTAL_ORDERED)) %>%
  slice_head(n = 20) # Select top 10 trade channels
 # Create bar plot
@@ -516,8 +516,31 @@ ggplot(top_trade_channels, aes(x = reorder(trade_channel, -AVG_TOTAL_ORDERED), y
  ) +
  theme_minimal() +
  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) # Rotate x-axis labels for readability
-
 ```
+
+
+The graph below illustrates that Cruise, Online Store, and Recreation Park have the highest average total ordered volumes. Additionally, Bulk Trade, Other Travel, and Comprehensive Provider exhibit notable order volumes, further reinforcing their contribution to overall sales.
+
+On the other hand, other sub-trade channels, such as Game Center, Recreation Film, and Fast Food, show comparatively lower average total ordered values. This comparison highlights the significant variation in demand across sub-trade channels, suggesting that order volume trends are strongly influenced by industry-specific purchasing behaviors.
+
+```{r}
+# Aggregate data to calculate the average total ordered per sub-trade channel
+top_10_sub_trade <- swire_data_full %>% 
+  group_by(sub_trade_channel) %>% 
+  summarise(AVG_TOTAL_ORDERED = mean(ordered_cases + ordered_gallons, na.rm =TRUE)) %>% 
+  arrange(desc(AVG_TOTAL_ORDERED)) %>% 
+  slice_head(n =20) # Select top 20 %>%
+ggplot(top_10_sub_trade, aes(x = reorder(sub_trade_channel, -AVG_TOTAL_ORDERED), y = AVG_TOTAL_ORDERED, fill = sub_trade_channel)) + 
+  geom_bar(stat ="identity", 
+           alpha = 0.7, 
+           show.legend =FALSE) + # Bar plot without legend
+  labs( title ="Top 10 Sub Trade Channels by Average Total Ordered", x ="Sub Trade Channel", y ="Average Total Ordered") + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle =45, hjust =1, vjust =1)) # Rotate x-axis labels for readability
+```
+
+
+### Order Type
 
 The graph below indicates that higher order volumes primarily come from MyCoke Legacy. This trend could be attributed to the fact that most sales originate from MyCoke Legacy and Sales Rep orders, or it may suggest a potential link between order type and high-growth potential customers.
 
@@ -632,6 +655,32 @@ swire_data_full %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
   ggtitle("Barplot of Ordered Gallons by Order Type (Customers < 400 Gallons)") +
   labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+```
+
+The visuals below indicate that non-partners generally exhibit higher median total orders and a wider range of order volumes, with some extreme outliers. In contrast, local market partners tend to have lower total orders and a smaller interquartile range, suggesting less variability in their order quantities.
+
+This difference in distribution may reflect distinct ordering behaviors between the two groups, warranting further analysis to understand the factors influencing order volume consistency among local market partners.
+
+```{r}
+# Define threshold for filtering (optional)
+NUMBER <- 1000 # Exclude extreme values if needed
+
+# Filter dataset to exclude outliers (optional)
+ORDERED_UNDER_NUMBER <- swire_data_full %>% 
+  filter(ordered_gallons + ordered_cases <= NUMBER)
+
+# Create boxplot to compare TOTAL_ORDERED by LOCAL_MARKET_PARTNER status
+ggplot(ORDERED_UNDER_NUMBER, aes(x = local_market_partner, y = ordered_gallons + ordered_cases, fill = local_market_partner)) + 
+  geom_boxplot(alpha =0.6) +# Boxplot with transparency
+labs( title = paste("LOCAL_MARKET_PARTNER vs. TOTAL_ORDERED (Excluding Orders >", NUMBER,")"), x ="Local Market Partner Status", y ="Total Ordered") + theme_minimal()
+
+# Compute average TOTAL_ORDERED for Local Market Partners (TRUE) and Non-Partners (FALSE)
+avg_total_order <- swire_data_full %>% 
+  group_by(local_market_partner) %>% 
+  summarise(AVG_TOTAL_ORDERED = mean(ordered_gallons + ordered_cases, na.rm =TRUE))
+
+# Display result
+print(avg_total_order)
 ```
 
 # Conclusion
