@@ -25,6 +25,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -52,8 +86,20 @@ ul.task-list li input[type="checkbox"] {
   <ul>
   <li><a href="#business-problem-statement" id="toc-business-problem-statement" class="nav-link active" data-scroll-target="#business-problem-statement">Business Problem Statement</a></li>
   <li><a href="#eda-introduction" id="toc-eda-introduction" class="nav-link" data-scroll-target="#eda-introduction">EDA Introduction</a></li>
-  <li><a href="#file-investigation" id="toc-file-investigation" class="nav-link" data-scroll-target="#file-investigation">File Investigation</a></li>
-  <li><a href="#data-wrangling" id="toc-data-wrangling" class="nav-link" data-scroll-target="#data-wrangling">Data Wrangling</a></li>
+  <li><a href="#file-investigation" id="toc-file-investigation" class="nav-link" data-scroll-target="#file-investigation">File Investigation</a>
+  <ul class="collapse">
+  <li><a href="#libraries-data" id="toc-libraries-data" class="nav-link" data-scroll-target="#libraries-data">Libraries &amp; Data</a></li>
+  <li><a href="#files-from-swire" id="toc-files-from-swire" class="nav-link" data-scroll-target="#files-from-swire">Files from Swire</a></li>
+  </ul></li>
+  <li><a href="#data-wrangling" id="toc-data-wrangling" class="nav-link" data-scroll-target="#data-wrangling">Data Wrangling</a>
+  <ul class="collapse">
+  <li><a href="#prepping-the-cost-data" id="toc-prepping-the-cost-data" class="nav-link" data-scroll-target="#prepping-the-cost-data">Prepping the Cost Data</a></li>
+  <li><a href="#prep-the-customer-address-object" id="toc-prep-the-customer-address-object" class="nav-link" data-scroll-target="#prep-the-customer-address-object">Prep the Customer Address Object</a></li>
+  <li><a href="#combine-individual-files" id="toc-combine-individual-files" class="nav-link" data-scroll-target="#combine-individual-files">Combine Individual Files</a></li>
+  <li><a href="#standardize-names-data-types" id="toc-standardize-names-data-types" class="nav-link" data-scroll-target="#standardize-names-data-types">Standardize Names &amp; Data Types</a></li>
+  <li><a href="#enrich-dataset-with-new-fields" id="toc-enrich-dataset-with-new-fields" class="nav-link" data-scroll-target="#enrich-dataset-with-new-fields">Enrich Dataset with New Fields</a></li>
+  <li><a href="#final-data-set" id="toc-final-data-set" class="nav-link" data-scroll-target="#final-data-set">Final Data Set</a></li>
+  </ul></li>
   <li><a href="#data-exploration" id="toc-data-exploration" class="nav-link" data-scroll-target="#data-exploration">Data Exploration</a></li>
   <li><a href="#conclusion" id="toc-conclusion" class="nav-link" data-scroll-target="#conclusion">Conclusion</a></li>
   </ul>
@@ -108,9 +154,301 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="file-investigation" class="level2">
 <h2 class="anchored" data-anchor-id="file-investigation">File Investigation</h2>
+<section id="libraries-data" class="level3">
+<h3 class="anchored" data-anchor-id="libraries-data">Libraries &amp; Data</h3>
+<p>We begin by setting up our session with the necessary libraries and data provided by Swire. These will be referenced often throughout this document.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load libraries for EDA</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">'tidyverse'</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">'skimr'</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">'janitor'</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">'psych'</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">'stringr'</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">'lubridate'</span>)</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Read files into session</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>transactions <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(data.table<span class="sc">::</span><span class="fu">fread</span>(<span class="st">"data/transactional_data.csv"</span>))</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>customer_address <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">"data/customer_address_and_zip_mapping.csv"</span>)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>customer_profile <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">"data/customer_profile.csv"</span>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>delivery_cost <span class="ot">&lt;-</span> readxl<span class="sc">::</span><span class="fu">read_xlsx</span>(<span class="st">'data/delivery_cost_data.xlsx'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="files-from-swire" class="level3">
+<h3 class="anchored" data-anchor-id="files-from-swire">Files from Swire</h3>
+<p>Swire Coca-Cola provided us with four (4) files we can use for the project. These include:</p>
+<p>Let’s take a peak at each of these in turn:</p>
+<section id="transactional_data.csv" class="level4">
+<h4 class="anchored" data-anchor-id="transactional_data.csv"><code>transactional_data.csv</code></h4>
+</section>
+<section id="customer_address_and_zip_mapping.csv" class="level4">
+<h4 class="anchored" data-anchor-id="customer_address_and_zip_mapping.csv"><code>customer_address_and_zip_mapping.csv</code></h4>
+</section>
+<section id="customer_profile.csv" class="level4">
+<h4 class="anchored" data-anchor-id="customer_profile.csv"><code>customer_profile.csv</code></h4>
+</section>
+<section id="delivery_cost_data.xlsx" class="level4">
+<h4 class="anchored" data-anchor-id="delivery_cost_data.xlsx"><code>delivery_cost_data.xlsx</code></h4>
+</section>
+</section>
 </section>
 <section id="data-wrangling" class="level2">
 <h2 class="anchored" data-anchor-id="data-wrangling">Data Wrangling</h2>
+<p>Having explored the files individual and making not of important details, we can now move on to wrangling these data into a single object, suitable for the more in-depth analysis upcoming. This wrangling will comprise of:</p>
+<ul>
+<li>Prep individual files for level-of-detail</li>
+<li>Combining the four (4) individual files we collected</li>
+<li>Standardizing column names</li>
+<li>Developing a theory for ordering said columns</li>
+<li>Casting fields to their proper data types</li>
+<li>Derived columns that further describe customer profiles</li>
+<li>Settle on transactional level data with appropriate cost estimates</li>
+<li>Etc.</li>
+</ul>
+<section id="prepping-the-cost-data" class="level3">
+<h3 class="anchored" data-anchor-id="prepping-the-cost-data">Prepping the Cost Data</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>delivery_cost_expanded <span class="ot">&lt;-</span> </span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    delivery_cost <span class="sc">|&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Split the volume range into an object</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">range_obj =</span> purrr<span class="sc">::</span><span class="fu">map</span>(<span class="st">`</span><span class="at">Vol Range</span><span class="st">`</span>, str_split, <span class="st">" - "</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Unnest the object for individual reference</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">unnest</span>(range_obj) <span class="sc">|&gt;</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">unnest_wider</span>(range_obj, <span class="at">names_sep =</span> <span class="st">"_"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Handle the "1350+" scenario</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">min_vol =</span> purrr<span class="sc">::</span><span class="fu">map_chr</span>(range_obj_1, str_replace, <span class="st">"</span><span class="sc">\\</span><span class="st">+"</span>, <span class="st">""</span>), </span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        <span class="at">max_vol  =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(range_obj_2), (<span class="dv">2</span><span class="sc">^</span><span class="dv">31</span>) <span class="sc">-</span> <span class="dv">1</span>, range_obj_2)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Turn volumes from charaters to integers</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="fu">across</span>(min_vol<span class="sc">:</span>max_vol, as.integer)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Drop irrelevant columns</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(<span class="sc">-</span><span class="fu">c</span>(range_obj_1, range_obj_2, <span class="st">`</span><span class="at">Vol Range</span><span class="st">`</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>annual_cust_volume <span class="ot">&lt;-</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Take transaction level data</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    transactions <span class="sc">|&gt;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Bring in the customer profile for the `Cold Drink Channel`</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">inner_join</span>(</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        customer_profile, </span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="fu">join_by</span>(CUSTOMER_NUMBER)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get annual cases/gallons by customer</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(YEAR, CUSTOMER_NUMBER, COLD_DRINK_CHANNEL) <span class="sc">|&gt;</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">annual_cases =</span> <span class="fu">sum</span>(DELIVERED_CASES), </span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        <span class="at">annual_gallons =</span> <span class="fu">sum</span>(DELIVERED_GALLONS), </span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>delivery_cost_tiers <span class="ot">&lt;-</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    annual_cust_volume <span class="sc">|&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">left_join</span>(</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        delivery_cost_expanded <span class="sc">|&gt;</span> <span class="fu">filter</span>(<span class="st">`</span><span class="at">Applicable To</span><span class="st">`</span> <span class="sc">!=</span> <span class="st">'Fountain'</span>), </span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="fu">join_by</span>(COLD_DRINK_CHANNEL <span class="sc">==</span> <span class="st">`</span><span class="at">Cold Drink Channel</span><span class="st">`</span>, annual_cases <span class="sc">&gt;=</span> min_vol, annual_cases <span class="sc">&lt;=</span> max_vol)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">left_join</span>(</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        delivery_cost_expanded <span class="sc">|&gt;</span> <span class="fu">filter</span>(<span class="st">`</span><span class="at">Applicable To</span><span class="st">`</span> <span class="sc">==</span> <span class="st">'Fountain'</span>), </span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        <span class="fu">join_by</span>(COLD_DRINK_CHANNEL <span class="sc">==</span> <span class="st">`</span><span class="at">Cold Drink Channel</span><span class="st">`</span>, annual_gallons <span class="sc">&gt;=</span> min_vol, annual_gallons <span class="sc">&lt;=</span> max_vol), </span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">suffix =</span> <span class="fu">c</span>(<span class="st">".c"</span>, <span class="st">".g"</span>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        YEAR, CUSTOMER_NUMBER, </span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>        <span class="at">case_delivery_cost =</span> <span class="st">`</span><span class="at">Median Delivery Cost.c</span><span class="st">`</span>, </span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>        <span class="at">gallon_delivery_cost =</span> <span class="st">`</span><span class="at">Median Delivery Cost.g</span><span class="st">`</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Take a peek</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(delivery_cost_tiers)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 6 × 4
+   YEAR CUSTOMER_NUMBER case_delivery_cost gallon_delivery_cost
+  &lt;int&gt;           &lt;int&gt;              &lt;dbl&gt;                &lt;dbl&gt;
+1  2023       500245678               4.47                 2.68
+2  2023       500245685               8.59                 2.01
+3  2023       500245686               7.33                 4.62
+4  2023       500245687               5.59                 3.76
+5  2023       500245689               8.59                 2.53
+6  2023       500245690               8.59                 3.02</code></pre>
+</div>
+</div>
+</section>
+<section id="prep-the-customer-address-object" class="level3">
+<h3 class="anchored" data-anchor-id="prep-the-customer-address-object">Prep the Customer Address Object</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>cust_addr_expanded <span class="ot">&lt;-</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    customer_address <span class="sc">|&gt;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Split the full address into an object</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">addr_obj =</span> purrr<span class="sc">::</span><span class="fu">map</span>(full.address, str_split, <span class="st">","</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Unnest the object for individual reference</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">unnest</span>(addr_obj) <span class="sc">|&gt;</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">unnest_wider</span>(addr_obj, <span class="at">names_sep =</span> <span class="st">"_"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Pad the zip code with leading zeros and make a character</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">zip =</span> <span class="fu">str_pad</span>(zip, <span class="dv">5</span>, <span class="st">"left"</span>, <span class="at">pad =</span> <span class="st">"0"</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Rename columns</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">rename</span>(</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>        <span class="at">city =</span> addr_obj_2, </span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">state =</span> addr_obj_3, </span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">state_abbr =</span> addr_obj_4, </span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">county =</span> addr_obj_5, </span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        <span class="at">lat =</span> addr_obj_7, </span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>        <span class="at">lon =</span> addr_obj_8</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Turn lat/lon values to numeric</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>        <span class="fu">across</span>(lat<span class="sc">:</span>lon, as.numeric)</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Drop irrelevant columns</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(<span class="sc">-</span><span class="fu">c</span>(full.address, addr_obj_1, addr_obj_6))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="combine-individual-files" class="level3">
+<h3 class="anchored" data-anchor-id="combine-individual-files">Combine Individual Files</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>combined_data_raw <span class="ot">&lt;-</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Take transactions</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    transactions <span class="sc">|&gt;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Join the customer profile data thereto</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">inner_join</span>(</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        customer_profile <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">zip =</span> <span class="fu">str_pad</span>(</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>            ZIP_CODE, <span class="dv">5</span>, <span class="st">"left"</span>, <span class="st">"0"</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        )), </span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        <span class="fu">join_by</span>(CUSTOMER_NUMBER)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Join the customer address data thereto</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">inner_join</span>(</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        cust_addr_expanded, </span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>        <span class="fu">join_by</span>(zip)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Join the delivery cost tiers data thereto</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">inner_join</span>(</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        delivery_cost_tiers, </span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="fu">join_by</span>(YEAR, CUSTOMER_NUMBER)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="standardize-names-data-types" class="level3">
+<h3 class="anchored" data-anchor-id="standardize-names-data-types">Standardize Names &amp; Data Types</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>combined_data_std <span class="ot">&lt;-</span> </span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Take the combined data from above</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    combined_data_raw <span class="sc">|&gt;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Standardize the names</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">clean_names</span>() <span class="sc">|&gt;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Standardize data types</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Convert charater dates to date types</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="fu">across</span>(<span class="fu">c</span>(transaction_date, first_delivery_date, on_boarding_date), lubridate<span class="sc">::</span>mdy), </span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Turn IDs into characters</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="fu">across</span>(<span class="fu">c</span>(customer_number, primary_group_number), as.character), </span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Turn finite categorical fields into factors</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        <span class="fu">across</span>(</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>            <span class="fu">c</span>(order_type, cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, state, state_abbr), </span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>            as.factor</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Remove irrelevant columns</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(<span class="sc">-</span><span class="fu">c</span>(zip_code))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="enrich-dataset-with-new-fields" class="level3">
+<h3 class="anchored" data-anchor-id="enrich-dataset-with-new-fields">Enrich Dataset with New Fields</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>swire_data_full <span class="ot">&lt;-</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    combined_data_std <span class="sc">|&gt;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Add new fields</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Calculate delivered gallons cost</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Assume a return is only half as costly as a normal delivery</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">delivered_gallons_cost =</span> <span class="fu">case_when</span>(</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>            delivered_gallons <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">~</span> <span class="sc">-</span><span class="dv">1</span> <span class="sc">*</span> delivered_gallons <span class="sc">*</span> gallon_delivery_cost <span class="sc">/</span> <span class="dv">2</span>, </span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>            <span class="cn">TRUE</span> <span class="sc">~</span> delivered_gallons <span class="sc">*</span> gallon_delivery_cost</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>        ), </span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Calculate delivered case cost</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Assume a return is only half as costly as a normal delivery</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        <span class="at">delivered_cases_cost =</span> <span class="fu">case_when</span>(</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>            delivered_cases <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">~</span> <span class="sc">-</span><span class="dv">1</span> <span class="sc">*</span> delivered_cases <span class="sc">*</span> case_delivery_cost <span class="sc">/</span> <span class="dv">2</span>, </span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>            <span class="cn">TRUE</span> <span class="sc">~</span> delivered_cases <span class="sc">*</span> case_delivery_cost</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(year, primary_group_number) <span class="sc">|&gt;</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Calculate number of customers belonging to each primary group by year</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        <span class="at">primary_group_customers =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(primary_group_number), <span class="dv">0</span>, <span class="fu">n_distinct</span>(customer_number))</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(year, customer_number) <span class="sc">|&gt;</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Calculate how often a customer issues a return each year</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>        <span class="at">return_frequency =</span> <span class="fu">sum</span>(<span class="fu">ifelse</span>(delivered_cases <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">|</span> delivered_gallons <span class="sc">&lt;</span> <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>))</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ungroup</span>() <span class="sc">|&gt;</span></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Drop select columns that are no longer relevant</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(<span class="sc">-</span><span class="fu">c</span>(gallon_delivery_cost, case_delivery_cost)) <span class="sc">|&gt;</span></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Order the columns logically</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># CUSTOMER PROFILE ITEMS</span></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>        customer_number, primary_group_number, primary_group_customers, </span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>        on_boarding_date, first_delivery_date, cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, local_market_partner, co2_customer, city, zip, state, state_abbr, county, lat, lon, </span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>        <span class="co"># TRANSACTION DETAILS</span></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>        transaction_date, week, year, order_type, </span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>        ordered_cases, loaded_cases, delivered_cases, delivered_cases_cost, </span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>        ordered_gallons, loaded_gallons, delivered_gallons, delivered_gallons_cost, </span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>        return_frequency</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="final-data-set" class="level3">
+<h3 class="anchored" data-anchor-id="final-data-set">Final Data Set</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(swire_data_full)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Rows: 1,045,540
+Columns: 31
+$ customer_number         &lt;chr&gt; "501202893", "500264574", "501174701", "600586…
+$ primary_group_number    &lt;chr&gt; NA, "1894", NA, "8397", "1993", "437", NA, NA,…
+$ primary_group_customers &lt;dbl&gt; 0, 47, 0, 49, 78, 651, 0, 0, 0, 0, 28, 0, 0, 8…
+$ on_boarding_date        &lt;date&gt; 2021-04-02, 2015-12-08, 2021-01-26, 1997-02-2…
+$ first_delivery_date     &lt;date&gt; 2021-05-07, 2018-03-23, 2021-04-12, 2017-05-0…
+$ cold_drink_channel      &lt;fct&gt; DINING, WELLNESS, DINING, BULK TRADE, GOODS, G…
+$ frequent_order_type     &lt;fct&gt; SALES REP, OTHER, MYCOKE360, SALES REP, SALES …
+$ trade_channel           &lt;fct&gt; COMPREHENSIVE DINING, HEALTHCARE, FAST CASUAL …
+$ sub_trade_channel       &lt;fct&gt; FSR - MISC, OTHER HEALTHCARE, OTHER FAST FOOD,…
+$ local_market_partner    &lt;lgl&gt; TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, TRUE, TRU…
+$ co2_customer            &lt;lgl&gt; TRUE, FALSE, TRUE, FALSE, FALSE, FALSE, FALSE,…
+$ city                    &lt;chr&gt; "Mahaska", "Banner", "Chelmsford", "Bernardsto…
+$ zip                     &lt;chr&gt; "66955", "41603", "01824", "01337", "67473", "…
+$ state                   &lt;fct&gt; Kansas, Kentucky, Massachusetts, Massachusetts…
+$ state_abbr              &lt;fct&gt; KS, KY, MA, MA, KS, KS, MD, MA, KY, KS, MD, KY…
+$ county                  &lt;chr&gt; "Washington", "Floyd", "Middlesex", "Franklin"…
+$ lat                     &lt;dbl&gt; 39.9845, 37.5707, 42.5911, 42.6952, 39.4194, 3…
+$ lon                     &lt;dbl&gt; -97.3453, -82.6806, -71.3556, -72.5772, -98.69…
+$ transaction_date        &lt;date&gt; 2023-01-05, 2023-01-06, 2023-01-09, 2023-01-1…
+$ week                    &lt;int&gt; 1, 1, 2, 2, 3, 4, 4, 4, 4, 5, 5, 6, 6, 6, 6, 7…
+$ year                    &lt;int&gt; 2023, 2023, 2023, 2023, 2023, 2023, 2023, 2023…
+$ order_type              &lt;fct&gt; MYCOKE LEGACY, MYCOKE LEGACY, MYCOKE LEGACY, S…
+$ ordered_cases           &lt;dbl&gt; 1.0, 12.5, 2.0, 18.0, 29.0, 1.5, 6.0, 0.0, 4.0…
+$ loaded_cases            &lt;dbl&gt; 1.0, 12.5, 2.0, 16.0, 29.0, 1.5, 5.0, 0.0, 1.0…
+$ delivered_cases         &lt;dbl&gt; 1.0, 12.5, 2.0, 16.0, 29.0, 1.5, 5.0, 0.0, 1.0…
+$ delivered_cases_cost    &lt;dbl&gt; 8.585482, 56.436259, 17.170965, 49.293328, 134…
+$ ordered_gallons         &lt;dbl&gt; 90.000000, 0.000000, 0.000000, 2.500000, 0.000…
+$ loaded_gallons          &lt;dbl&gt; 90.000000, 0.000000, 0.000000, 2.500000, 0.000…
+$ delivered_gallons       &lt;dbl&gt; 90.000000, 0.000000, 0.000000, 2.500000, 0.000…
+$ delivered_gallons_cost  &lt;dbl&gt; 129.7426990, 0.0000000, 0.0000000, 7.1199352, …
+$ return_frequency        &lt;dbl&gt; 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1…</code></pre>
+</div>
+</div>
+<p>Now, we have a single, standardized data set that is enriched, properly formatted, and well-suited to the ensuing analysis.</p>
+</section>
 </section>
 <section id="data-exploration" class="level2">
 <h2 class="anchored" data-anchor-id="data-exploration">Data Exploration</h2>
