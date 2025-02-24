@@ -1,0 +1,1007 @@
+---
+title: "Exploratory Data Analysis | Swire Coca-Cola Capstone Project "
+subtitle: "IS 6813-001, Spring 2025 | Group 3"
+author:
+  - Adam Bushman
+  - Georgia Christodoulou
+  - Tyler Swanson
+  - Zac Mendenhall
+date: "2/23/2025"
+output:
+    html_document:
+        theme: simplex
+        self_contained: true
+        embed-resources: true
+toc: true
+---
+
+![](swire-banner.png)
+
+<br>
+
+## Business Problem Statement
+
+Regional beverage bottler Swire Coca-Cola (SCCU) relies on two business models: 1) “Red Truck”, which features high-volume customers serviced personally by Swire, and 2) “White Truck” or “Alternate Route to Market”, which entails smaller customers serviced by a third-party distributor.
+
+Swire’s current segmenting strategy has led to misallocation of resources, inflated expenses, and missed opportunities from clients with high-growth potential. Swire aims to better algin their customers with the business proposition of these models by identifying customer characteristics and  rdering behavior that better determines the right business model for the long-term relationship.
+
+
+## EDA Introduction
+
+In this exploratory data analysis (EDA) notebook, we assess the quality of the provided data, detail the data cleaning processes undertaken, define our success metrics, and outline the key questions driving our analysis. By examining customer characteristics and ordering behaviors, we aim to realign Swire’s customer segmentation with the strategic propositions of their two distribution models, ultimately enabling a more effective long-term relationship strategy.
+
+
+## File Investigation
+
+### Libraries & Data
+
+We begin by setting up our session with the necessary libraries and data provided by Swire. These will be referenced often throughout this document.
+
+```{r warning = FALSE, message = FALSE}
+
+
+# Load libraries for EDA
+library('tidyverse')  # Data wrangling & visualization
+library('gt')         # Create professional tables
+library('janitor')    # Clean column names & messy data
+library('psych')      # Descriptive stats & psych research tools
+library('stringr')    # String manipulation
+library('lubridate')  # Handle dates & times
+library('rmarkdown')  # Render R Markdown docs
+library('dplyr')      # Data manipulation (filter, select, mutate, etc.)
+library('skimr')      # Quick summary stats
+library('tidyr')      # Reshape/tidy data
+library('readxl')     # Read Excel files
+library('ggplot2')    # Data visualization
+library('readr')      # Read/write CSV & text files
+library('knitr')      # Generate dynamic reports
+library('leaflet')    # Generate dynamic map
+
+
+# Read files into session
+transactions <- as.data.frame(data.table::fread("data/transactional_data.csv"))
+customer_address <- read.csv("data/customer_address_and_zip_mapping.csv")
+customer_profile <- read.csv("data/customer_profile.csv")
+delivery_cost <- readxl::read_xlsx('data/delivery_cost_data.xlsx')
+
+```
+
+```{r include = FALSE}
+
+# Branding colors
+swire_colors <- list(
+  "red" = "#cd0720", 
+  "blue" = "#005398", 
+  "gray" = "#f2f2f2"
+)
+
+# {ggplot2} theme for Swire
+theme_swire <- function() {
+    theme(
+    plot.title.position = "plot", 
+
+    plot.background = element_rect(fill = "white", color = NA), 
+    panel.background = element_rect(fill = swire_colors$gray, color = NA), 
+
+    plot.title = element_text(color = swire_colors$red, face = "bold", family = "Poppins"), 
+    plot.subtitle = element_text(face = "italic", family = "Poppins"), 
+    axis.title = element_text(face = "bold", family = "Poppins"), 
+    axis.text = element_text(family = "Poppins"), 
+
+    strip.background = element_rect(fill = swire_colors$blue, color = NA), 
+    strip.text = element_text(color = "white", face = "bold")
+  )
+}
+```
+
+
+### Files from Swire
+
+Swire Coca-Cola provided us with four (4) files we can use for the project. These include:
+
+```{r echo = FALSE}
+gt(tibble(
+  file = c(
+    "transactional_data", "customer_address_and_zip_mapping", "customer_profile", "delivery_cost_data"
+  ), 
+  description = c(
+    "This dataset records detailed transactional information, including order quantities and delivery metrics.", 
+    "This dataset maps ZIP codes to full address information.", 
+    "This dataset provides detailed information about customers, including onboarding and purchasing behavior.", 
+    "This dataset describes the median 'per gallon/case' cost of delivery according to annual order volume and custoemr profile."
+  ), 
+  format = c(".csv", ".csv", ".csv", ".xlsx"), 
+  colnum = c(11, 2, 11, 5), 
+  rownum = c(1045540, 1801, 30478, 160)
+)) |>
+  cols_label(
+    file = "Name", 
+    description = "Description", 
+    format = "Format", 
+    colnum = "Columns", 
+    rownum = "Rows"
+  ) |>
+  cols_align(
+    align = "center", 
+    columns = c("format", "colnum", "rownum")
+  ) |>
+  fmt_number(
+    columns = c("colnum", "rownum"), 
+    decimals = 0
+  ) |>
+  tab_options(
+    column_labels.background.color = swire_colors$red, 
+  )
+```
+
+Let's take a peak at each of these in turn. We'll remark on:
+
+1. Completeness (how many data are missing)
+2. Data types (are fields properly formatted for analysis)
+3. Distribution (how values are spread out)
+4. Potential wrangling (what we can do for improving data set quality)
+
+
+#### `transactional_data.csv`
+
+```{r}
+skim(transactions)
+```
+
+```{r}
+glimpse(transactions)
+```
+
+**<span style="color:#cd0720">Completeness</span>**
+
+The data are fully complete; there's not a single column with missing or empty values.
+
+**<span style="color:#cd0720">Data Types</span>**
+
+We have a fair mix of data types, though some are improperly casted. Indentifiers like `CUSOTMER_NUMBER` shouldn't be continuous, and dates like `TRANSACTION_DATE` can be enriched with a date/datetime format.
+
+**<span style="color:#cd0720">Distribution</span>**
+
+The shape of the data seen is quite skewed: most all of the volume columns are highly skewed right (meaning most transactions are small). We do see some "negative" delivery volumes, which we are to understand as returns.
+
+**<span style="color:#cd0720">Potential Wrangling</span>**
+
+This data set will benefit most from proper data types. Additionally, we can determine (for each customer) how often they see returned transactions (a potentially helpful indicator for client quality).
+
+
+We don't yet have a good sense for 1) the breadth of data longitudinally and 2) what order types exist. Let's solve these with some basic visualizations.
+
+```{r}
+transactions |>
+  mutate(
+    TRANSACTION_DATE = lubridate::mdy(TRANSACTION_DATE)
+  ) |>
+  group_by(TRANSACTION_DATE) |>
+  count() |>
+  ungroup() |>
+
+  ggplot(
+      aes(TRANSACTION_DATE, n)
+    ) +
+    geom_line(color = swire_colors$blue) +
+    geom_smooth(color = swire_colors$red) +
+    scale_x_date() +
+    labs(
+      title = "Daily Transaction Volume",  
+      x = "Transaction Date"
+    ) +
+    theme_swire() +
+    theme(
+      axis.title.y = element_blank()
+    )
+```
+
+There's obviously high variability in the number of transactions per day, but we are seeing a smoothing where the average day per week sees a transaction volume between 1,000 and 2,000. Additionally, it's clear we have two (2) years of transactions: 2023 & 2024.
+
+```{r}
+order_types <- 
+  transactions |>
+  group_by(ORDER_TYPE) |>
+  count() |>
+  ungroup() |>
+  mutate(perc = n / sum(n)) |>
+  arrange(n)
+
+order_types$ORDER_TYPE = factor(order_types$ORDER_TYPE, levels = order_types$ORDER_TYPE)
+
+  ggplot(
+      order_types, 
+      aes(n, ORDER_TYPE, label = scales::percent_format()(perc))
+    ) +
+    geom_col(fill = swire_colors$red) +
+    geom_text(
+      aes(
+        hjust = ifelse(n < 1e5, -0.1, 1.1), 
+        color = ifelse(n < 1e5, "black", "white"), 
+      )
+    ) +
+    scale_color_identity() +
+    labs(
+      title = "Distribution of `ORDER_TYPE`"
+    ) +
+    theme_swire() +
+    theme(
+      axis.title = element_blank(), 
+      axis.text.x = element_blank(), 
+      axis.ticks.x = element_blank()
+    )
+```
+
+Okay, we now see there's 6 unique types and some values that indicate `null`. That appears to be a text "null" so that's an opportunity to clean up. There's clearly 3 order types of largest interest:
+
+* MYCOKE LEGACY
+* CALL CENTER
+* SALES REP
+
+
+#### `customer_address_and_zip_mapping.csv`
+
+```{r}
+skim(customer_address)
+```
+
+```{r}
+glimpse(customer_address)
+```
+
+**<span style="color:#cd0720">Completeness</span>**
+
+We aren't seeing any incomplete/missing values so far here. That's great news.
+
+**<span style="color:#cd0720">Data Types</span>**
+
+The data types aren't quite right. Because of leading zeros and 9 digit zip codes, `zip` should really be of type "character". Also, we're seeing the full address is comma-separated; not ideal.
+
+**<span style="color:#cd0720">Distribution</span>**
+
+There's no field where assessing distribution is helpful/relevant.
+
+**<span style="color:#cd0720">Potential Wrangling</span>**
+
+Pulling out the values from `full.address` will be helpful. We can then make sure those are of proper data types. 
+
+
+One thing we don't have a great sense for right now is where the addresses are located. Let's see if we can't make a dynamic map showing where customers are located:
+
+
+**<span style="color:#cd0720">Swire Market Geography</span>**
+
+We'll first pull out the latitude/longitude values.
+
+```{r}
+addr_exp <- 
+  customer_address |>
+  separate(
+    full.address, 
+    into = c("zip", "city", "state", "state_abbr", "county", "region", "lat", "lon"), 
+    sep = ",", 
+    convert = TRUE
+  )
+```
+
+Then we'll add them to a map:
+
+```{r}
+swire_map <-                                                              
+    leaflet(height = 800, width = 800) |>
+    addTiles() |>
+    setView(lng = mean(addr_exp$lon), lat = mean(addr_exp$lat), zoom = 5) |>
+    addProviderTiles("CartoDB.Positron") |>
+    addCircleMarkers(
+        data = addr_exp,
+        lng = ~lon,
+        lat = ~lat,
+        radius = 6, 
+        color = swire_colors$red, 
+        fillOpacity = 0.75
+    )
+
+swire_map
+```
+
+Okay, we're seeing customers largely in Kansas, Kentucky, Maryland, and Massachusetts, with some in Louisiana. It's not understood to what extent, if any, this geographic will hold value in a more optimized delivery model solution for Swire, but we'll ensure the data are wrangled properly regardless.
+
+
+#### `customer_profile.csv`
+
+```{r}
+skim(customer_profile)
+```
+
+```{r}
+glimpse(customer_profile)
+```
+
+**<span style="color:#cd0720">Completeness</span>**
+
+All columns appear complete with the exception of `PRIMARY_GROUP_NUMBER`; there's appropximately 60% of records with missing values here. This is interpreted as customers who are "stand alone", as in not part of a corporate franchising arm. Therefore, it's understandable these values are missing.
+
+**<span style="color:#cd0720">Data Types</span>**
+
+Data types are largely appropriate. We have several "character" types we can turn into factors. Some dates should be appropriately cast. We do need to change identifiers to "character". And similar processing as already described will be done for `ZIP_CODE`.
+
+**<span style="color:#cd0720">Distribution</span>**
+
+There's not a ton to note here except that the vast majority of customers are "local market parneters" and most aren't purchasing C02 from Swire, either because they source elsewhere or are not fountain customers. 
+
+**<span style="color:#cd0720">Potential Wrangling</span>**
+
+It's likely that a customer belonging to a franchise would be evaluated differently than a stand alone customer, all else being equal. We can derive a value for the number of franchises belonging to the primary group.
+
+
+
+Let's see what values/frequency is inherent to `COLD_DRINK_CHANNEL`:
+
+```{r}
+channel <- 
+  customer_profile |>
+  group_by(COLD_DRINK_CHANNEL) |>
+  count() |>
+  ungroup() |>
+  mutate(perc = n / sum(n)) |>
+  arrange(n)
+
+channel$COLD_DRINK_CHANNEL = factor(channel$COLD_DRINK_CHANNEL, levels = channel$COLD_DRINK_CHANNEL)
+
+  ggplot(
+      channel, 
+      aes(n, COLD_DRINK_CHANNEL, label = scales::percent_format()(perc))
+    ) +
+    geom_col(fill = swire_colors$red) +
+    geom_text(
+      aes(
+        hjust = ifelse(n < 10000, -0.1, 1.1), 
+        color = ifelse(n < 10000, "black", "white"), 
+      )
+    ) +
+    scale_color_identity() +
+    labs(
+      title = "Distribution of `COLD_DRINK_CHANNEL`"
+    ) +
+    theme_swire() +
+    theme(
+      axis.title = element_blank(), 
+      axis.text.x = element_blank(), 
+      axis.ticks.x = element_blank()
+    )
+```
+
+There's 9 different channels, largely dominated by "DINING". Others of interest include "EVENT" and "GOODS". 
+
+
+#### `delivery_cost_data.xlsx`
+
+```{r}
+skim(delivery_cost)
+```
+
+```{r}
+glimpse(delivery_cost)
+```
+
+**<span style="color:#cd0720">Completeness</span>**
+
+All values are present; there shouldn't be any imputation necessary. 
+
+**<span style="color:#cd0720">Data Types</span>**
+
+`Vol Range` is a field that needs to be split out into a "min"/"max". Everyting else seems very reasonable.
+
+**<span style="color:#cd0720">Distribution</span>**
+
+In most cases, the distribution of `Median Delivery Cost` is skewed right, which is indicative of outlier costs for troublesome clients.
+
+**<span style="color:#cd0720">Potential Wrangling</span>**
+
+It's notable that the column names are formatted differently. This is an area of standardization. Additionally, we'll need to do quite a bit of prep to get the appropriate annual volumes by customer and intersect with this lookup table.
+
+
+```{r}
+
+delivery_cost$`Cold Drink Channel` = factor(delivery_cost$`Cold Drink Channel`, levels = channel$COLD_DRINK_CHANNEL)
+
+ggplot(
+  delivery_cost, 
+  aes(`Median Delivery Cost`, `Cold Drink Channel`)
+) +
+  geom_boxplot(color = swire_colors$red) +
+  scale_x_continuous(labels = scales::label_currency()) +
+  facet_wrap(~`Applicable To`, nrow = 1, scales = "free") +
+  labs(
+    title = "Distribution of Median Delivery Cost", 
+    subtitle = "By `Cold Drink Channel` and `Product Type`"
+  ) +
+  theme_swire() +
+  theme(
+    axis.title = element_blank()
+  )
+
+```
+
+Interestingly, there's some real variance among costs in some `Cold Drink Channels` but less in others. Additionally, it's not consistent between "Bottles and Cans" and "Fountain" products.
+
+
+## Data Wrangling
+
+Having explored the files individually and making note of important details, we can now move on to wrangling these data into a single object, suitable for the more in-depth analysis upcoming. This wrangling will comprise of:
+
+* Prep individual files for level-of-detail
+* Combining the four (4) individual files we collected
+* Standardizing column names
+* Developing a theory for ordering said columns
+* Casting fields to their proper data types
+* Derived columns that further describe customer profiles
+* Settle on transactional level data with appropriate cost estimates
+* Etc.
+
+
+### Prepping the Cost Data
+
+```{r}
+delivery_cost_expanded <- 
+    delivery_cost |>
+    # Split the volume range into an object
+    mutate(
+        range_obj = purrr::map(`Vol Range`, str_split, " - ")
+    ) |>
+    # Unnest the object for individual reference
+    unnest(range_obj) |>
+    unnest_wider(range_obj, names_sep = "_") |>
+    # Handle the "1350+" scenario
+    mutate(
+        min_vol = purrr::map_chr(range_obj_1, str_replace, "\\+", ""), 
+        max_vol  = ifelse(is.na(range_obj_2), (2^31) - 1, range_obj_2)
+    ) |>
+    # Turn volumes from charaters to integers
+    mutate(
+        across(min_vol:max_vol, as.integer)
+    ) |>
+    # Drop irrelevant columns
+    select(-c(range_obj_1, range_obj_2, `Vol Range`))
+```
+
+```{r}
+annual_cust_volume <-
+    # Take transaction level data
+    transactions |>
+    # Bring in the customer profile for the `Cold Drink Channel`
+    inner_join(
+        customer_profile, 
+        join_by(CUSTOMER_NUMBER)
+    ) |>
+    # Get annual cases/gallons by customer
+    group_by(YEAR, CUSTOMER_NUMBER, COLD_DRINK_CHANNEL) |>
+    summarise(
+        annual_cases = sum(DELIVERED_CASES), 
+        annual_gallons = sum(DELIVERED_GALLONS), 
+        .groups = "drop"
+    )
+```
+
+```{r}
+delivery_cost_tiers <-
+    annual_cust_volume |>
+    left_join(
+        delivery_cost_expanded |> filter(`Applicable To` != 'Fountain'), 
+        join_by(COLD_DRINK_CHANNEL == `Cold Drink Channel`, annual_cases >= min_vol, annual_cases <= max_vol)
+    ) |>
+    left_join(
+        delivery_cost_expanded |> filter(`Applicable To` == 'Fountain'), 
+        join_by(COLD_DRINK_CHANNEL == `Cold Drink Channel`, annual_gallons >= min_vol, annual_gallons <= max_vol), 
+        suffix = c(".c", ".g")
+    ) |>
+    select(
+        YEAR, CUSTOMER_NUMBER, 
+        case_delivery_cost = `Median Delivery Cost.c`, 
+        gallon_delivery_cost = `Median Delivery Cost.g`
+    )
+
+# Take a peek
+head(delivery_cost_tiers)
+```
+
+
+### Prep the Customer Address Object
+
+```{r}
+cust_addr_expanded <-
+    customer_address |>
+    # Split the full address into an object
+    mutate(
+        addr_obj = purrr::map(full.address, str_split, ",")
+    ) |>
+    # Unnest the object for individual reference
+    unnest(addr_obj) |>
+    unnest_wider(addr_obj, names_sep = "_") |>
+    # Pad the zip code with leading zeros and make a character
+    mutate(
+        zip = str_pad(zip, 5, "left", pad = "0")
+    ) |>
+    # Rename columns
+    rename(
+        city = addr_obj_2, 
+        state = addr_obj_3, 
+        state_abbr = addr_obj_4, 
+        county = addr_obj_5, 
+        lat = addr_obj_7, 
+        lon = addr_obj_8
+    ) |>
+    # Turn lat/lon values to numeric
+    mutate(
+        across(lat:lon, as.numeric)
+    ) |>
+    # Drop irrelevant columns
+    select(-c(full.address, addr_obj_1, addr_obj_6))
+```
+
+
+### Combine Individual Files
+
+```{r}
+combined_data_raw <-
+    # Take transactions
+    transactions |>
+    # Join the customer profile data thereto
+    inner_join(
+        customer_profile |> mutate(zip = str_pad(
+            ZIP_CODE, 5, "left", "0"
+        )), 
+        join_by(CUSTOMER_NUMBER)
+    ) |>
+    # Join the customer address data thereto
+    inner_join(
+        cust_addr_expanded, 
+        join_by(zip)
+    ) |>
+    # Join the delivery cost tiers data thereto
+    inner_join(
+        delivery_cost_tiers, 
+        join_by(YEAR, CUSTOMER_NUMBER)
+    )
+```
+
+
+### Standardize Names & Data Types
+
+```{r}
+combined_data_std <- 
+    # Take the combined data from above
+    combined_data_raw |>
+    # Standardize the names
+    clean_names() |>
+    # Standardize data types
+    mutate(
+        # Convert charater dates to date types
+        across(c(transaction_date, first_delivery_date, on_boarding_date), lubridate::mdy), 
+        # Turn IDs into characters
+        across(c(customer_number, primary_group_number), as.character), 
+        # Turn finite categorical fields into factors
+        across(
+            c(order_type, cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, state, state_abbr), 
+            as.factor
+        )
+    ) |>
+    # Remove irrelevant columns
+    select(-c(zip_code))
+```
+
+
+### Enrich Dataset with New Fields
+
+```{r}
+swire_data_full <-
+    combined_data_std |>
+    # Add new fields
+    mutate(
+        # Calculate delivered gallons cost
+        # Assume a return is only half as costly as a normal delivery
+        delivered_gallons_cost = case_when(
+            delivered_gallons < 0 ~ -1 * delivered_gallons * gallon_delivery_cost / 2, 
+            TRUE ~ delivered_gallons * gallon_delivery_cost
+        ), 
+        # Calculate delivered case cost
+        # Assume a return is only half as costly as a normal delivery
+        delivered_cases_cost = case_when(
+            delivered_cases < 0 ~ -1 * delivered_cases * case_delivery_cost / 2, 
+            TRUE ~ delivered_cases * case_delivery_cost
+        ),
+        # Create 'total' columns representing the sum of gallons & cases
+        ordered_total = ordered_gallons + ordered_cases, 
+        loaded_total = loaded_gallons + loaded_cases, 
+        delivered_total = delivered_gallons + delivered_cases, 
+    ) |>
+    group_by(year, primary_group_number) |>
+    mutate(
+        # Calculate number of customers belonging to each primary group by year
+        primary_group_customers = ifelse(is.na(primary_group_number), 0, n_distinct(customer_number))
+    ) |>
+    group_by(year, customer_number) |>
+    mutate(
+        # Calculate how often a customer issues a return each year
+        return_frequency = sum(ifelse(delivered_cases < 0 | delivered_gallons < 0, 1, 0))
+    ) |>
+    ungroup() |>
+    # Drop select columns that are no longer relevant
+    select(-c(gallon_delivery_cost, case_delivery_cost)) |>
+    # Order the columns logically
+    select(
+        # CUSTOMER PROFILE ITEMS
+        customer_number, primary_group_number, primary_group_customers, 
+        on_boarding_date, first_delivery_date, cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, local_market_partner, co2_customer, city, zip, state, state_abbr, county, lat, lon, 
+        
+        # TRANSACTION DETAILS
+        transaction_date, week, year, order_type, 
+        ordered_cases, loaded_cases, delivered_cases, delivered_cases_cost, 
+        ordered_gallons, loaded_gallons, delivered_gallons, delivered_gallons_cost, 
+        ordered_total, loaded_total, delivered_total, 
+        return_frequency
+    )
+```
+
+### Final Data Set
+
+```{r}
+glimpse(swire_data_full)
+```
+
+Now, we have a single, standardized data set that is enriched, properly formatted, and well-suited to the remaining analysis.
+
+
+## Data Exploration
+
+### Order Type
+
+In the table below, I calculated the fulfillment rate for various customers. The fulfillment rate is defined as total delivered cases divided by total ordered cases.
+
+* A fulfillment rate of 1 means the customer receives exactly what they order.
+* A fulfillment rate greater than 1 indicates they are being delivered more than they ordered.
+
+It may be worth investigating whether these customers have high return rates or if they consistently receive more than they request. If it's the latter, this pattern could be an indicator of high sales demand.
+
+
+```{r}
+# Calculate fulfillment rates by customer
+fulfillment_rates <- swire_data_full %>%
+  group_by(customer_number) %>%
+  summarise(
+    total_ordered_cases = sum(ordered_cases, na.rm = TRUE),
+    total_delivered_cases = sum(delivered_cases, na.rm = TRUE),
+    fulfillment_rate = ifelse(total_ordered_cases == 0, NA, total_delivered_cases / total_ordered_cases)
+  ) %>%
+  filter(!is.na(fulfillment_rate)) %>%  # Remove rows where fulfillment rate is undefined
+  arrange(desc(fulfillment_rate))
+
+
+
+# Define the customer numbers to keep for table
+selected_customers <- c("501261447", "501563326", "501580838", "501686677", "501483916", "600563579",
+                        "501004189", "501004936", "501006776", "501006936", "501007325", "501007477", "501007757")
+
+# Summarizing the fulfillment rates and filtering the selected customers for table
+filtered_fulfillment_rates <- swire_data_full %>%
+  group_by(customer_number) %>%
+  summarise(
+    total_ordered_cases = sum(ordered_cases, na.rm = TRUE),
+    total_delivered_cases = sum(delivered_cases, na.rm = TRUE),
+    fulfillment_rate = ifelse(total_ordered_cases == 0, NA, total_delivered_cases / total_ordered_cases)
+  ) %>%
+  filter(customer_number %in% selected_customers) %>%  # Keep only the selected customers
+  arrange(desc(fulfillment_rate))
+
+# Display the filtered table
+gt(filtered_fulfillment_rates) |>
+  tab_header(
+    title = "Fulfillment Rates for Selected Customers"
+  )
+
+```
+
+The below plot indicates that Travel, Superstore, and Bulk Trade channels have the highest average total ordered, followed by General Activities
+and Academic Institutions. Other trade channels, including Healthcare, Recreation, and Defense, have lower average total
+ordered values. This comparison highlights that specific channels tend to have a very high average total ordered where others
+are consistently lower.
+
+```{r}
+# Aggregate data to calculate the average total ordered per trade channel
+top_trade_channels <- swire_data_full %>%
+ group_by(trade_channel) %>%
+ summarise(AVG_TOTAL_ORDERED = mean(ordered_total, na.rm = TRUE)) %>%
+ arrange(desc(AVG_TOTAL_ORDERED)) %>%
+ slice_head(n = 20) # Select top 10 trade channels
+# Create bar plot
+ggplot(top_trade_channels, aes(x = reorder(trade_channel, -AVG_TOTAL_ORDERED), y = AVG_TOTAL_ORDERED, fill
+= trade_channel)) +
+ geom_bar(stat = "identity", alpha = 0.7, show.legend = FALSE) + # Bar plot without legend
+ labs(
+ title = "Top 10 Trade Channels by Average Total Ordered",
+ x = "Trade Channel",
+ y = "Average Total Ordered"
+ ) +
+ theme_minimal() +
+ theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) # Rotate x-axis labels for readability
+
+```
+
+The graph below indicates that higher order volumes primarily come from MyCoke Legacy. This trend could be attributed to the fact that most sales originate from MyCoke Legacy and Sales Rep orders, or it may suggest a potential link between order type and high-growth potential customers.
+
+When analyzing customers with < 400 volume, Call Center is the most common order type, while Sales Rep orders drop to third place. This shift suggests that order type could be a valuable characteristic for identifying high-growth potential customers, particularly among lower-volume segments. Further analysis could help determine whether order type patterns correlate with customer expansion trends.
+
+```{r}
+# Aggregate order data by order type
+order_type_summary <- swire_data_full %>%
+  group_by(order_type) %>%
+  summarise(total_gallons = sum(ordered_cases + ordered_gallons, na.rm = TRUE))
+
+# Plot total ordered cases by order type
+ggplot(order_type_summary, aes(x = reorder(order_type, -total_gallons), y = total_gallons, fill = order_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Gallons")
+
+# Plot total ordered cases by order type for customers with < 400 gallons per year
+swire_data_full %>%
+  group_by(customer_number, order_type) %>%
+  summarize(total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)) %>%
+  filter(total_gallons < 400) %>% 
+  group_by(order_type) %>% 
+  summarize(gallons = sum(total_gallons)) %>%
+  ggplot(aes(x = reorder(order_type, -gallons), y = gallons, fill = order_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  ggtitle("Barplot of Ordered Gallons by Order Type (Customers < 400 Gallons)") +
+  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+
+```
+
+### Cold Drink Channel
+
+The graphs below indicate that Dining and Goods are the primary cold drink channels for customers with a volume of less than 400 gallons, whereas Bulk Trade and Dining dominate across all customers. This distinction suggests that conducting a separate 'Dining' cold drink channel analysis could be valuable in comparing the characteristics and ordering behaviors between customers below and above the 400-gallon threshold.
+
+```{r}
+# for all customers
+swire_data_full %>%
+  group_by(cold_drink_channel) %>%
+  summarize(gallons = sum(ordered_gallons + ordered_cases)) %>%
+  ggplot(aes(x = reorder(cold_drink_channel, - gallons), y = gallons, fill = cold_drink_channel)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Barplot of Ordered Gallons by Cold Drink Channel") +
+  labs(x = "Cold Drink Channel", y = "Total Gallons") 
+  
+
+# for customers with < 400 gallons per year
+swire_data_full %>%
+  group_by(customer_number, cold_drink_channel) %>%
+  summarize(total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)) %>%
+  filter(total_gallons < 400) %>% 
+  group_by(cold_drink_channel) %>% 
+  summarize(gallons = sum(total_gallons)) %>%
+  ggplot(aes(reorder(cold_drink_channel, - gallons), y = gallons, fill = cold_drink_channel)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  ggtitle("Ordered Gallons by Cold Drink Channel (Customers < 400 Gallons)") +
+  labs(x = "Cold Drink Channel", y = "Total Gallons")
+```
+
+### Local Market Partners
+
+The table below presents order volume and unit delta from 2023 to 2024 by customer, segmented by trade channel and sub-trade channel. Among the sub-trade channels, Cruises, Online Stores, Bulk Trade, and Comprehensive Providers exhibit higher unit delta year-over-year, indicating strong growth trends.
+
+Additionally, the Fast Casual Dining trade channel stands out with notable year-over-year increases in order volume. This suggests that Fast Casual Dining customers within the local market partner segment could represent less obvious but high-growth potential opportunities, making them a strategic group to explore further.
+
+```{r}
+# year over year changes in gallon volume by customer
+swire_data_full %>%
+  filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
+  group_by(customer_number, year, trade_channel, sub_trade_channel) %>%
+  summarize(gallons = sum(ordered_gallons + ordered_cases)) %>%
+  pivot_wider(names_from = year, values_from = gallons) %>%
+  mutate(unit_delta = (`2024` - `2023`)) %>%
+  arrange(desc(unit_delta))
+```
+
+The graphs below illustrate the distribution of order types among local market partners. Notably, the EDI order type is the most dominant among local market partners. However, among customers with a volume of less than 400 gallons, Call Center and MyMoke360/Legacy orders remain the preferred choices.
+
+While this difference may not seem highly significant, the shift in order type preference for customers with < 400 gallons—both in the local market partner segment and across all customers—could indicate that this variable holds some importance in customer behavior.
+
+```{r}
+# for all local market partner customers
+swire_data_full %>%
+  filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
+  group_by(order_type) %>%
+  summarize(gallons = sum(ordered_gallons + ordered_cases)) %>%
+  ggplot(aes(x = reorder(order_type, -gallons), y = gallons, fill = order_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  ggtitle("Barplot of Ordered Gallons by Order Type") +
+  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+
+# for customers with < 400 gallons per year
+swire_data_full %>%
+  filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
+  group_by(customer_number, order_type) %>%
+  summarize(total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)) %>%
+  filter(total_gallons < 400) %>% 
+  group_by(order_type) %>% 
+  summarize(gallons = sum(total_gallons)) %>%
+  ggplot(aes(x = reorder(order_type, -gallons), y = gallons, fill = order_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  ggtitle("Barplot of Ordered Gallons by Order Type (Customers < 400 Gallons)") +
+  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+```
+
+
+### C02 Customer
+
+CO2 customers are an interesting subset of the data. We can look at customers who purchase fountain products (i.e.e "ordered_gallons") and compare their distribution across CO2 customer status and even adjust for local market partner status.
+
+```{r}
+swire_data_full |>
+  group_by(co2_customer, customer_number, local_market_partner) |>
+  summarise(total = sum(ordered_gallons)) |>
+  ungroup() |>
+  filter(total > 0) |>
+
+  ggplot(
+    aes(x = local_market_partner, total)
+  ) +
+    geom_boxplot(color = swire_colors$red) +
+    scale_y_log10() +
+    facet_wrap(~co2_customer) +
+    labs(
+      title = "Distribution of Total Volume Among 'Fountain' Products", 
+      subtitle = "Grouped by status as a CO2 customer", 
+      x = "Local Market Partner?"
+    ) +
+    theme_swire() +
+    theme(
+      axis.title.y = element_blank()
+    )
+```
+
+Among those order fountain products, we really aren't seeing any measurable difference. There's subtlties in the outliers but non-CO2 customers are meaningfully different in order volume. Even adjusting for `local_market_partner` isn't demonstrating any meaningful pattern.
+
+
+### Customer Tenure
+
+An interesting component to this analysis is varying levels of tenure, where some customers are "new" (their first order in the time window) while others having been customers for ages. We can look at order volume by tenure (years) for any patterns.
+
+
+```{r}
+
+swire_data_full |>
+  group_by(customer_number) |>
+  summarise(
+    tenure_years = floor(max(as.integer(transaction_date - on_boarding_date) / 365)), 
+    total = sum(ordered_total)
+  ) |>
+  ungroup() |>
+  mutate(tenure_years = as.factor(tenure_years)) |>
+
+  ggplot(
+    aes(tenure_years, total)
+  ) +
+    geom_boxplot(color = swire_colors$red) +
+    scale_x_discrete() +
+    scale_y_log10() +
+    labs(
+      title = "Distribution of Total Volume", 
+      subtitle = "Organized by tenure and order type"
+    ) +
+    theme_swire()
+```
+
+Predictably, customers with less tenure than our two (2) year window will have less than others. There also appears to be many outliers during the initial years of tenure. Later on, however, there's more variability in the IQR. We can expand this even more by introducing another variable and simplifying to tenure bins.
+
+```{r}
+swire_data_full |>
+  group_by(customer_number, cold_drink_channel) |>
+  summarise(
+    tenure_years = floor(max(as.integer(transaction_date - on_boarding_date) / 365)), 
+    total = sum(ordered_total)
+  ) |>
+  ungroup() |>
+  mutate(tenure_years_bin = as.factor(cut(tenure_years, breaks = 4))) |>
+
+  ggplot(
+    aes(tenure_years_bin, total)
+  ) +
+    geom_boxplot(color = swire_colors$red) +
+    scale_y_log10() +
+    facet_wrap(~order_type) +
+    labs(
+      title = "Distribution of Total Volume", 
+      subtitle = "Organized by tenure and order type"
+    ) +
+    theme_swire()
+```
+
+We see here that there really isn't any pattern for time/tenure playing into the equation. We could look at the same for `cold_drink_channel` and the same bears true. It suggests that there's no general trend of time being a factor for increased order volume, even down to sub groups.
+
+
+### Geographic Order Volume
+
+We can also get a sense for concentration of orders by geography. We'll build off of the map we created above but scale the size of the points to the volume of orders.
+
+
+```{r}
+swire_cust_vol <- 
+  swire_data_full |>
+  group_by(customer_number, lon, lat, local_market_partner) |>
+  summarise(total = sum(ordered_total)) |>
+  ungroup() |>
+  mutate(
+    total_scaled = (total / max(total)) * 100
+  )
+```
+
+```{r}
+swire_map_vol <-                                                              
+    leaflet(height = 800, width = 800) |>
+    addTiles() |>
+    setView(lng = mean(swire_cust_vol$lon), lat = mean(swire_cust_vol$lat), zoom = 5) |>
+    addProviderTiles("CartoDB.Positron") |>
+    addCircleMarkers(
+        data = swire_cust_vol,
+        lng = ~lon,
+        lat = ~lat,
+        radius = ~sqrt(total_scaled), 
+        color = ~swire_colors$red, 
+        fillOpacity = 0.15
+    )
+
+swire_map_vol
+```
+
+There are certainly hot beds of more activity than others but there isn't a strong rhyme or reason pattern that's noticed from this view. Better still would be quantifying density to other delivery points and/or to sister franchises. We could use seomthing like the *haversine formula* as a proxy.
+
+
+
+## Conclusion
+
+This exploratory data analysis (EDA) exercise has established a foundation for our group in some key areas:
+
+1. We are far more familiar with Swire Coca-Cola's business model, data structure, and customer nuances. This will equip us with necessary context for the modeling stage.
+
+2. We have a solid understanding of areas to model and explore more deeply given the lessons learned and findings extracted. This means we'll be more efficient and effective.
+
+3. Our team has yielded "proof of concept" in how we collaborate cognitively (i.e. exploration of ideas) and structurally. This is crucial as the group looks to deliver a powerful solution to Swire Coca-Cola by project end.
+
+During the next phase of the project, Modeling, our team will leverage these insights with more advanced analysis techniques, such as leveraging cluster algorithms, cost savings models, and both temporal and spatial analyses. This is all in the effort to develop a framework for better distinguishing high-growth potential from low-growth customers, offering a framework that improves on the current 400-gallon threshold. 
+
+
+## Division of Work
+
+Formulation of this group EDA was made possible thanks to the collaborative partnership from all group members. 
+
+As a group, we've partnered in the following ways:
+
+* Worked out of a group GitHub repository, following best practices of commits to branches and issuing pull requests, with teammates reviewing, approving, and merging work to `main`.
+
+* Partnered on data wrangling logic, determining how we would clean, standardize, and resolve inherent constraints of the provided data. This was the recipe for individual work described below.
+
+* Consolidated individual work into this document, ensuring thoughtful organization, engaging content, and attractive design. 
+
+
+Each member contributed with individual work as described below:
+
+* Indvidiually, we created a unique EDA document comprised of our own insights through extensive research and time with the data sets.
+
+* Individually, we created a cleaning script adhering to the defined plan as described above. This approach helped ensure all gained valuable programming experience and were intimately familiar with our cleaned data. 
+
+
+Thank you,
+
+Adam, Georgia, Tyler, Zac
