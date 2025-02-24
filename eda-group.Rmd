@@ -907,7 +907,7 @@ Predictably, customers with less tenure than our two (2) year window will have l
 
 ```{r}
 swire_data_full |>
-  group_by(customer_number, cold_drink_channel) |>
+  group_by(customer_number, order_type) |>
   summarise(
     tenure_years = floor(max(as.integer(transaction_date - on_boarding_date) / 365)), 
     total = sum(ordered_total)
