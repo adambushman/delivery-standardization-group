@@ -171,7 +171,7 @@ This data set will benefit most from proper data types. Additionally, we can det
 
 We don't yet have a good sense for 1) the breadth of data longitudinally and 2) what order types exist. Let's solve these with some basic visualizations.
 
-```{r}
+```{r warning = FALSE}
 transactions |>
   mutate(
     TRANSACTION_DATE = lubridate::mdy(TRANSACTION_DATE)
@@ -198,7 +198,7 @@ transactions |>
 
 There's obviously high variability in the number of transactions per day, but we are seeing a smoothing where the average day per week sees a transaction volume between 1,000 and 2,000. Additionally, it's clear we have two (2) years of transactions: 2023 & 2024.
 
-```{r}
+```{r warning = FALSE}
 order_types <- 
   transactions |>
   group_by(ORDER_TYPE) |>
@@ -337,7 +337,7 @@ It's likely that a customer belonging to a franchise would be evaluated differen
 
 Let's see what values/frequency is inherent to `COLD_DRINK_CHANNEL`:
 
-```{r}
+```{r warning = FALSE}
 channel <- 
   customer_profile |>
   group_by(COLD_DRINK_CHANNEL) |>
@@ -401,7 +401,7 @@ In most cases, the distribution of `Median Delivery Cost` is skewed right, which
 It's notable that the column names are formatted differently. This is an area of standardization. Additionally, we'll need to do quite a bit of prep to get the appropriate annual volumes by customer and intersect with this lookup table.
 
 
-```{r}
+```{r warning = FALSE}
 
 delivery_cost$`Cold Drink Channel` = factor(delivery_cost$`Cold Drink Channel`, levels = channel$COLD_DRINK_CHANNEL)
 
@@ -707,11 +707,10 @@ and Academic Institutions. Other trade channels, including Healthcare, Recreatio
 ordered values. This comparison highlights that specific channels tend to have a very high average total ordered where others
 are consistently lower.
 
-```{r}
+```{r warning = FALSE}
 # Aggregate data to calculate the average total ordered per trade channel
 top_trade_channels <- swire_data_full %>%
  group_by(trade_channel) %>%
- summarise(AVG_TOTAL_ORDERED = mean(ordered_cases + ordered_gallons, na.rm = TRUE)) %>%
  summarise(AVG_TOTAL_ORDERED = mean(ordered_total, na.rm = TRUE)) %>%
  arrange(desc(AVG_TOTAL_ORDERED)) %>%
  slice_head(n = 20) # Select top 10 trade channels
@@ -733,7 +732,7 @@ The graph below illustrates that Cruise, Online Store, and Recreation Park have 
 
 On the other hand, other sub-trade channels, such as Game Center, Recreation Film, and Fast Food, show comparatively lower average total ordered values. This comparison highlights the significant variation in demand across sub-trade channels, suggesting that order volume trends are strongly influenced by industry-specific purchasing behaviors.
 
-```{r}
+```{r warning = FALSE}
 # Aggregate data to calculate the average total ordered per sub-trade channel
 top_10_sub_trade <- swire_data_full %>% 
   group_by(sub_trade_channel) %>% 
@@ -756,7 +755,7 @@ The graph below indicates that higher order volumes primarily come from MyCoke L
 
 When analyzing customers with < 400 volume, Call Center is the most common order type, while Sales Rep orders drop to third place. This shift suggests that order type could be a valuable characteristic for identifying high-growth potential customers, particularly among lower-volume segments. Further analysis could help determine whether order type patterns correlate with customer expansion trends.
 
-```{r}
+```{r warning = FALSE}
 # Aggregate order data by order type
 order_type_summary <- swire_data_full %>%
   group_by(order_type) %>%
@@ -789,7 +788,7 @@ swire_data_full %>%
 
 The graphs below indicate that Dining and Goods are the primary cold drink channels for customers with a volume of less than 400 gallons, whereas Bulk Trade and Dining dominate across all customers. This distinction suggests that conducting a separate 'Dining' cold drink channel analysis could be valuable in comparing the characteristics and ordering behaviors between customers below and above the 400-gallon threshold.
 
-```{r}
+```{r warning = FALSE}
 # for all customers
 swire_data_full %>%
   group_by(cold_drink_channel) %>%
@@ -838,7 +837,7 @@ The graphs below illustrate the distribution of order types among local market p
 
 While this difference may not seem highly significant, the shift in order type preference for customers with < 400 gallons—both in the local market partner segment and across all customers—could indicate that this variable holds some importance in customer behavior.
 
-```{r}
+```{r warning = FALSE}
 # for all local market partner customers
 swire_data_full %>%
   filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
@@ -872,7 +871,7 @@ The visuals below indicate that non-partners generally exhibit higher median tot
 
 This difference in distribution may reflect distinct ordering behaviors between the two groups, warranting further analysis to understand the factors influencing order volume consistency among local market partners.
 
-```{r}
+```{r warning = FALSE}
 # Define threshold for filtering (optional)
 NUMBER <- 1000 # Exclude extreme values if needed
 
@@ -883,6 +882,7 @@ ORDERED_UNDER_NUMBER <- swire_data_full %>%
 # Create boxplot to compare TOTAL_ORDERED by LOCAL_MARKET_PARTNER status
 ggplot(ORDERED_UNDER_NUMBER, aes(x = local_market_partner, y = ordered_gallons + ordered_cases, fill = local_market_partner)) + 
   geom_boxplot(alpha =0.6) +# Boxplot with transparency
+  scale_y_log10() +
 labs( title = paste("LOCAL_MARKET_PARTNER vs. TOTAL_ORDERED (Excluding Orders >", NUMBER,")"), x ="Local Market Partner Status", y ="Total Ordered") + theme_minimal()
 
 # Compute average TOTAL_ORDERED for Local Market Partners (TRUE) and Non-Partners (FALSE)
@@ -899,7 +899,7 @@ print(avg_total_order)
 
 CO2 customers are an interesting subset of the data. We can look at customers who purchase fountain products (i.e.e "ordered_gallons") and compare their distribution across CO2 customer status and even adjust for local market partner status.
 
-```{r}
+```{r warning = FALSE}
 swire_data_full |>
   group_by(co2_customer, customer_number, local_market_partner) |>
   summarise(total = sum(ordered_gallons)) |>
@@ -931,7 +931,7 @@ Among those order fountain products, we really aren't seeing any measurable diff
 An interesting component to this analysis is varying levels of tenure, where some customers are "new" (their first order in the time window) while others having been customers for ages. We can look at order volume by tenure (years) for any patterns.
 
 
-```{r}
+```{r warning = FALSE}
 
 swire_data_full |>
   group_by(customer_number) |>
@@ -957,7 +957,7 @@ swire_data_full |>
 
 Predictably, customers with less tenure than our two (2) year window will have less than others. There also appears to be many outliers during the initial years of tenure. Later on, however, there's more variability in the IQR. We can expand this even more by introducing another variable and simplifying to tenure bins.
 
-```{r}
+```{r warning = FALSE}
 swire_data_full |>
   group_by(customer_number, order_type) |>
   summarise(
