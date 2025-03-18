@@ -39,7 +39,6 @@ We begin by setting up our session with the necessary libraries and data provide
 
 ```{r warning = FALSE, message = FALSE}
 
-
 # Load libraries for EDA
 library('tidyverse')  # Data wrangling & visualization
 library('gt')         # Create professional tables
@@ -548,7 +547,8 @@ customer_neighbors_clean <-
 We now gave great summary values for the neighbors of each customer. Let's now get our full customer level of detail data together and finalize some data enrichment:
 
 ```{r include = FALSE}
-customer_neighbors_clean <- as.data.frame(data.table::fread("data/customer_neighbor_fields.csv"))
+customer_neighbors_clean <- as.data.frame(data.table::fread("data/customer_neighbor_fields.csv")) |>
+  mutate(customer_number = as.character(customer_number))
 ```
 
 ```{r}
@@ -617,11 +617,16 @@ summary(swire_pca)
 
 With only 33 principal components, we're capturing 80% of the variability. This is probably sufficient for us to proceed.
 
+```{r}
+swire_pca_results <- as.data.frame(swire_pca$x)
+```
+
+
 #### Clustering Algorithm Setup
 
 We're going to try two different algorithms: `kmeans` and `hierarchical` clustering. We'll setup two functions that will calculate the within sum of squares (`wss`).
 
-```{r}
+```{r eval = FALSE}
 cluster_kmeans <- function(k, data) {
     fit <- kmeans(data, k)
     vals <- glance(fit)
@@ -644,9 +649,10 @@ cluster_hclust <- function(k, data) {
 
 Let's setup a grid where we can save different values for these algorithms against different cluster sizes (2-8) and WSS values:
 
-```{r}
+```{r eval = FALSE}
 set.seed(814)
 
+swire_pca_80 <- swire_pca_results[,1:33]
 swire_pca_80_sampl <- swire_pca_80 |> sample_n(size = 5000)
 
 clustering_grid <- data.frame(
@@ -656,7 +662,7 @@ clustering_grid <- data.frame(
 
 We've also taken a sample of the data for computational efficiency. Let's use a function to plot the outcomes:
 
-```{r}
+```{r eval = FALSE}
 show_cluster_results <- function(results, title) {
     results |>
         pivot_longer(cols = -clusters) |>
@@ -666,54 +672,62 @@ show_cluster_results <- function(results, title) {
             as.numeric(value),
             group = name)
         ) +
-        geom_line(color = swire_colors$red) +
+        geom_line(
+            color = swire_colors$red, 
+            linetype = "dotted", 
+            size = 2
+        ) +
         # geom_line(aes(color = name), group = 1) +
-        geom_smooth(aes(group = name), se = FALSE) +
+        geom_smooth(aes(group = name),, color = swire_colors$red, se = FALSE) +
         labs(
             title = title
             , subtitle = "Two clustering algorithm methods: kmeans and hierarchical"
+            , x = "Number of clusters"
+            , y = "Within Sum of Squares"
         ) +
         facet_wrap(~name, ncol = 1, scales = "free") +
-        coord_fixed() +
+        # coord_fixed() +
         theme_swire()
 }
 ```
 
 #### Clustering Exploration
 
-```{r}
-clustering_grid_results_sampl_70 <-
+```{r eval = FALSE}
+clustering_grid_results_sampl_80 <-
     clustering_grid |>
     mutate(
-        kmeans = map(clusters, ~ cluster_kmeans(.x, swire_pca_70_sampl))
-        ,hclust = map(clusters, ~ cluster_hclust(.x, swire_pca_70_sampl))
+        kmeans = map(clusters, ~ cluster_kmeans(.x, swire_pca_80_sampl))
+        ,hclust = map(clusters, ~ cluster_hclust(.x, swire_pca_80_sampl))
     )
 ```
 
-```{r}
+```{r eval = FALSE}
 show_cluster_results(
-    clustering_grid_results_sampl_70
-    , "Cluster Results | 70% PCA, 5K Sample"
+    clustering_grid_results_sampl_80
+    , "Cluster Results | 80% PCA, 5K Sample"
 )
 ```
+
+![](data/cluster_results_comparison.png)
 
 This graph gives us a sense for the "elbow point", the crux where we get diminishing returns in WSS from splitting into more and more clusters.
 
 That looks to be about 5 (CONFIRM). We could double check that pretty easily by running the above functions again but for all of the data:
 
 ```{r eval = FALSE}
-clustering_grid_results_70 <-
+clustering_grid_results_80 <-
     clustering_grid |>
     mutate(
-        kmeans = map(clusters, ~ cluster_kmeans(.x, swire_pca_70))
-        ,hclust = map(clusters, ~ cluster_hclust(.x, swire_pca_70))
+        kmeans = map(clusters, ~ cluster_kmeans(.x, swire_pca_80))
+        ,hclust = map(clusters, ~ cluster_hclust(.x, swire_pca_80))
     )
 ```
 
 ```{r eval = FALSE}
 show_cluster_results(
-    clustering_grid_results_70
-    , "Cluster Results | 70% PCA, All Data"
+    clustering_grid_results_80
+    , "Cluster Results | 80% PCA, All Data"
 )
 ```
 
@@ -722,10 +736,24 @@ Let's generate cluster assignments!
 
 #### Cluster Assignments
 
-```{r}
-fit <- kmeans(swire_pca_70, 5)
+```{r eval = FALSE}
+model <- hier_clust(num_clusters = 5, linkage_method = "complete")
+fit <- model |> fit(~., data = swire_pca_80)
 
-swire_cust_clustered <- swire_cust_enriched |> mutate(cluster = factor(fit$cluster))
+# Next this
+cluster_assignments <- fit |> predict(swire_pca_80)
+```
+
+```{r include = FALSE}
+# saveRDS(cluster_assignments, file = "data/cluster_assignments.rds")
+
+cluster_assignments <- readRDS("data/cluster_assignments.rds")
+```
+
+Now let's join those cluster assignments back to our original, enriched data set. This will allow us to explore the properties of each cluster.
+
+```{r}
+swire_cust_clustered <- swire_cust_enriched |> mutate(cluster = cluster_assignments$.pred_cluster)
 ```
 
 
