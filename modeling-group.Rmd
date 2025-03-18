@@ -56,14 +56,19 @@ library('ggplot2')    # Data visualization
 library('readr')      # Read/write CSV & text files
 library('knitr')      # Generate dynamic reports
 library('leaflet')    # Generate dynamic map
+library('geosphere')
+library('caret')
+library("tidymodels")           # Used for its modeling framework
+library("tidyclust")            # Used for clustering approaches
+library("kernlab")              # Weighted kernal k-means
+```
 
-
+```{r eval = FALSE}
 # Read files into session
 transactions <- as.data.frame(data.table::fread("data/transactional_data.csv"))
 customer_address <- read.csv("data/customer_address_and_zip_mapping.csv")
 customer_profile <- read.csv("data/customer_profile.csv")
 delivery_cost <- readxl::read_xlsx('data/delivery_cost_data.xlsx')
-
 ```
 
 ```{r include = FALSE}
@@ -111,7 +116,7 @@ Having explored the files individually and making note of important details, we 
 
 ### Prepping the Cost Data
 
-```{r}
+```{r eval = FALSE}
 delivery_cost_expanded <- 
     delivery_cost |>
     # Split the volume range into an object
@@ -134,7 +139,7 @@ delivery_cost_expanded <-
     select(-c(range_obj_1, range_obj_2, `Vol Range`))
 ```
 
-```{r}
+```{r eval = FALSE}
 annual_cust_volume <-
     # Take transaction level data
     transactions |>
@@ -152,7 +157,7 @@ annual_cust_volume <-
     )
 ```
 
-```{r}
+```{r eval = FALSE}
 delivery_cost_tiers <-
     annual_cust_volume |>
     left_join(
@@ -177,7 +182,7 @@ head(delivery_cost_tiers)
 
 ### Prep the Customer Address Object
 
-```{r}
+```{r eval = FALSE}
 cust_addr_expanded <-
     customer_address |>
     # Split the full address into an object
@@ -211,7 +216,7 @@ cust_addr_expanded <-
 
 ### Combine Individual Files
 
-```{r}
+```{r eval = FALSE}
 combined_data_raw <-
     # Take transactions
     transactions |>
@@ -237,7 +242,7 @@ combined_data_raw <-
 
 ### Standardize Names & Data Types
 
-```{r}
+```{r eval = FALSE}
 combined_data_std <- 
     # Take the combined data from above
     combined_data_raw |>
@@ -262,7 +267,7 @@ combined_data_std <-
 
 ### Enrich Dataset with New Fields
 
-```{r}
+```{r eval = FALSE}
 swire_data_full <-
     combined_data_std |>
     # Add new fields
@@ -314,6 +319,11 @@ swire_data_full <-
 
 ### Final Data Set
 
+```{r include = FALSE}
+
+swire_data_full <- readRDS('data/swire_data_full.Rds')
+```
+
 ```{r}
 glimpse(swire_data_full)
 ```
@@ -330,7 +340,414 @@ Lorem ipsum...
 
 ### Approach 2
 
-Lorem ipsum...
+This approach is another take on clustering. The idea is to enrich the data with additional features, most notably leveraging the spatial data we have to understand "neighboring" customers of swire. Here's a simple graphic to illustrate the idea:
+
+![](img/nearest-customers-diagram.png)
+
+For each customer, it may be helpful to know how isolated or densely populated they are. We can approximate this using the "Haversine Distance" formula. In short, it utilizes the latitude and longitude, adjusting for eath's curvature, to approximate the "as the crow flies" distance.
+
+Knowing which 5 customers are closest to each, we can determine order volume, return rates, etc., for these neighbors. **These fields could be helpful in determining the value of an area**; if an area is valuable, even if the customer isn't *yet*, there may be a statistical argument for their potential for red truck.
+
+Let's derive these distances.
+
+#### Customer Level of Detail
+
+We want to get the data to one customer per row. Since we're currently at the level of detail of transactions, we need to do some prep work.
+
+```{r}
+swire_cust_grp <-
+    swire_data_full |>
+    group_by(
+        pick(customer_number:lon, return_frequency, year),
+    ) |>
+    summarise(
+        order_transactions = sum(ifelse(ordered_total > 0, 1, 0)), 
+        order_transaction_std = sd(ordered_total), 
+        delivery_transactions = sum(ifelse(delivered_total > 0, 1, 0)), 
+        across(ordered_cases:delivered_total, ~ sum(.x))
+    ) |>
+    ungroup()
+```
+
+```{r}
+swire_cust_uniq <- 
+    swire_cust_grp |>
+    pivot_wider(
+        id_cols = c(customer_number:primary_group_number, on_boarding_date:lon), 
+        names_from = year, 
+        values_from = c(primary_group_customers, return_frequency:delivered_total), 
+        names_glue = "{.value}_{year}", 
+        values_fill = 0
+    )
+    
+swire_cust_clean <- 
+    swire_cust_uniq |>
+    replace_na(list(
+        order_transaction_std_2023 = mean(swire_cust_uniq$order_transaction_std_2023, na.rm = TRUE), 
+        order_transaction_std_2024 = mean(swire_cust_uniq$order_transaction_std_2024, na.rm = TRUE), 
+        delivered_gallons_cost_2023 = 0, 
+        delivered_gallons_cost_2024 = 0, 
+        delivered_cases_cost_2023 = 0,
+        delivered_cases_cost_2024 = 0
+
+    )) |>
+    select(-c(city, zip, state_abbr, county))
+```
+
+
+#### Distance Calculations
+
+```{r eval = FALSE}
+if(file.exists('data/cust_dist.rda')) {
+    load('data/cust_dist.rda')
+} else {
+    kansas.data <- swire_cust_grp |> filter(state == 'Kansas')
+    kansas.dist <- distm(kansas.data[,c("lon", "lat")], fun = distHaversine)
+
+    mass.data <- swire_cust_grp |> filter(state == 'Massachusetts')
+    mass.dist <- distm(mass.data[,c("lon", "lat")], fun = distHaversine)
+
+    maryland.data <- swire_cust_grp |> filter(state == 'Maryland')
+    maryland.dist <- distm(maryland.data[,c("lon", "lat")], fun = distHaversine)
+
+    kentucky.data <- swire_cust_grp |> filter(state == 'Kentucky')
+    kentucky.dist <- distm(kentucky.data[,c("lon", "lat")], fun = distHaversine)
+
+    louisiana.data <- swire_cust_grp |> filter(state == 'Louisiana')
+    louisiana.dist <- distm(louisiana.data[,c("lon", "lat")], fun = distHaversine)
+
+    cust_dist <- list(
+        "louisiana" = list(
+            "dist" = louisiana.dist, 
+            "cust" = louisiana.data$customer_number, 
+            "group" = louisiana.data$primary_group_number
+        ), 
+        "kansas" = list(
+            "dist" = kansas.dist, 
+            "cust" = kansas.data$customer_number, 
+            "group" = kansas.data$primary_group_number
+        ), 
+        "mass" = list(
+            "dist" = mass.dist, 
+            "cust" = mass.data$customer_number, 
+            "group" = mass.data$primary_group_number
+        ), 
+        "maryland" = list(
+            "dist" = maryland.dist, 
+            "cust" = maryland.data$customer_number, 
+            "group" = maryland.data$primary_group_number
+        ), 
+        "kentucky" = list(
+            "dist" = kentucky.dist, 
+            "cust" = kentucky.data$customer_number, 
+            "group" = kentucky.data$primary_group_number
+        )
+    )
+
+    save(cust_dist, file = "data/cust_dist.rda")
+}
+```
+
+```{r eval = FALSE}
+diag(cust_dist$louisiana$dist) <- Inf
+diag(cust_dist$kansas$dist) <- Inf
+diag(cust_dist$mass$dist) <- Inf
+diag(cust_dist$maryland$dist) <- Inf
+diag(cust_dist$kentucky$dist) <- Inf
+```
+
+```{r eval = FALSE}
+get_top5 <- function(row) {
+    idx <- order(setdiff(row, c(0)))[1:5]
+    values <- row[idx] / 1000
+    list(indices = idx, values = values)
+}
+```
+
+
+```{r eval = FALSE}
+dist_df <- data.frame(matrix(NA, nrow = 0, ncol = 4)) |>
+    mutate(
+        X1 = as.character(X1),
+        X2 = as.character(X2),
+        X3 = as.integer(X3),
+        X4 = as.numeric(X4)
+    )
+colnames(dist_df) <- c("customer_number", "primary_group_number", "indices", "distances")
+
+for(state in names(cust_dist)) {
+    results <- apply(cust_dist[[state]]$dist, 1, get_top5)
+
+    results_tbl <- tibble(
+        customer_number = as.character(cust_dist[[state]]$cust), 
+        primary_group_number = as.character(cust_dist[[state]]$group), 
+        indices = lapply(results, function(x) x$indices),
+        distances = lapply(results, function(x) x$values)
+    ) |>
+        unnest_longer(c("indices", "distances")) |>
+        inner_join(
+            tibble(
+                neighbor_number = as.character(cust_dist[[state]]$cust)
+            ) |> rowid_to_column()
+            , join_by(indices == rowid)
+        )
+
+    dist_df <- bind_rows(dist_df, results_tbl)
+}
+```
+
+
+#### Intersecting With Customers
+
+Now that we have generated the "neighbors" for each customer, we can join back to our cleaned customer data and calculate summary values for all of the neighbors.
+
+```{r eval = FALSE}
+customer_neighbors <- dist_df |>
+    as_tibble() |>
+    inner_join(
+        swire_cust_clean, 
+        join_by(neighbor_number == customer_number)
+    ) |>
+    mutate(
+        same_group_flg = primary_group_number.x == primary_group_number.y
+    ) |>
+    group_by(
+        customer_number
+    ) |>
+    summarise(
+        neighbor_avg_dist_km = mean(distances), 
+        neighbor_primary_group_count = sum(same_group_flg, na.rm = TRUE), 
+        neighbor_local_market_partners = sum(local_market_partner), 
+        neighbor_avg_return_freq = (mean(return_frequency_2023) + mean(return_frequency_2024)) / 2, 
+        neighbor_avg_order_transactions_2023 = mean(order_transactions_2023),  
+        neighbor_avg_order_transactions_2024 = mean(order_transactions_2024), 
+        neighbor_avg_order_transaction_std_2023 = mean(order_transaction_std_2023), 
+        neighbor_avg_order_transaction_std_2024 = mean(order_transaction_std_2024), 
+        neighbor_avg_ordered_total_2023 = mean(ordered_total_2023), 
+        neighbor_avg_ordered_total_2024 = mean(ordered_total_2024)
+    ) |>
+    ungroup()
+
+customer_neighbors_clean <- 
+    customer_neighbors |>
+    mutate(neighbor_avg_dist_km = ifelse(
+        is.infinite(neighbor_avg_dist_km), 
+        max(ifelse(!is.infinite(neighbor_avg_dist_km), neighbor_avg_dist_km, NA), na.rm = TRUE), 
+        neighbor_avg_dist_km
+    )) |>
+    replace_na(list(
+        neighbor_avg_dist_km = median(customer_neighbors$neighbor_avg_dist_km, na.rm = TRUE), 
+        neighbor_avg_order_transaction_std_2023 = mean(customer_neighbors$neighbor_avg_order_transaction_std_2023, na.rm = TRUE), 
+        neighbor_avg_order_transaction_std_2024 = mean(customer_neighbors$neighbor_avg_order_transaction_std_2024, na.rm = TRUE)
+    ))
+```
+
+
+#### Enriching Additional Values
+
+We now gave great summary values for the neighbors of each customer. Let's now get our full customer level of detail data together and finalize some data enrichment:
+
+```{r include = FALSE}
+customer_neighbors_clean <- as.data.frame(data.table::fread("data/customer_neighbor_fields.csv"))
+```
+
+```{r}
+swire_cust_enriched <- 
+    swire_cust_clean |>
+    inner_join(customer_neighbors_clean) |>
+    mutate(
+        across(c(on_boarding_date, first_delivery_date), as.Date), 
+        across(c(customer_number, primary_group_number), as.character), 
+        across(c(co2_customer, local_market_partner), as.integer), 
+        customer_tenure_yrs = round(as.integer(lubridate::ymd("2024-12-31") - on_boarding_date) / 365.25, 1), 
+        ramp_up_mon = round(as.integer(first_delivery_date - on_boarding_date) * 12 / 365.25, 1)
+    ) |>
+    select(-c(on_boarding_date, first_delivery_date))
+```
+
+We now have a really feature rich dataset with additional features describing the area and neighboring customers. 
+
+```{r}
+glimpse(swire_cust_enriched)
+```
+
+
+#### Prep for Clustering
+
+We need to turn categorical data into one-hot encoded (dummy) variables so we can run PCA.
+
+```{r}
+swire_numeric <- swire_cust_enriched |> select(where(is.numeric))
+swire_non_numeric <- swire_cust_enriched |> 
+    select(!where(is.numeric)) |>
+    select(-c(customer_number, primary_group_number, sub_trade_channel)) |>
+    mutate(
+        across(everything(), ~factor(make.names(.)))
+    )
+```
+
+```{r}
+swire_dmy <- dummyVars("~ .", swire_non_numeric)
+data_dmy <- data.frame(predict(swire_dmy, swire_non_numeric))
+```
+
+
+```{r}
+swire_cust_combined <-
+    swire_numeric |>
+    bind_cols(data_dmy) |>
+    select(-c(trade_channel.PHARMACY.RETAILER))
+```
+
+Let's now scale these values:
+
+```{r}
+swire_scaled <- scale(swire_cust_combined)
+```
+
+Let's run PCA and get a sense for how well it does:
+
+```{r}
+swire_pca <- prcomp(swire_scaled)
+```
+
+```{r}
+summary(swire_pca)
+```
+
+With only 33 principal components, we're capturing 80% of the variability. This is probably sufficient for us to proceed.
+
+#### Clustering Algorithm Setup
+
+We're going to try two different algorithms: `kmeans` and `hierarchical` clustering. We'll setup two functions that will calculate the within sum of squares (`wss`).
+
+```{r}
+cluster_kmeans <- function(k, data) {
+    fit <- kmeans(data, k)
+    vals <- glance(fit)
+    return(vals$tot.withinss)
+}
+
+cluster_hclust <- function(k, data) {
+    # Run the algorithm
+    model <- hier_clust(num_clusters = k, linkage_method = "complete")
+    fit <- model |> fit(~., data = as.data.frame(data))
+
+    wss <- fit |>
+        sse_within() |>
+        select(wss) |>
+        unlist() |>
+        sum()
+    return(wss)
+}
+```
+
+Let's setup a grid where we can save different values for these algorithms against different cluster sizes (2-8) and WSS values:
+
+```{r}
+set.seed(814)
+
+swire_pca_80_sampl <- swire_pca_80 |> sample_n(size = 5000)
+
+clustering_grid <- data.frame(
+    clusters = 2:8
+)
+```
+
+We've also taken a sample of the data for computational efficiency. Let's use a function to plot the outcomes:
+
+```{r}
+show_cluster_results <- function(results, title) {
+    results |>
+        pivot_longer(cols = -clusters) |>
+        unnest(value) |>
+        ggplot(aes(
+            factor(clusters), 
+            as.numeric(value),
+            group = name)
+        ) +
+        geom_line(color = swire_colors$red) +
+        # geom_line(aes(color = name), group = 1) +
+        geom_smooth(aes(group = name), se = FALSE) +
+        labs(
+            title = title
+            , subtitle = "Two clustering algorithm methods: kmeans and hierarchical"
+        ) +
+        facet_wrap(~name, ncol = 1, scales = "free") +
+        coord_fixed() +
+        theme_swire()
+}
+```
+
+#### Clustering Exploration
+
+```{r}
+clustering_grid_results_sampl_70 <-
+    clustering_grid |>
+    mutate(
+        kmeans = map(clusters, ~ cluster_kmeans(.x, swire_pca_70_sampl))
+        ,hclust = map(clusters, ~ cluster_hclust(.x, swire_pca_70_sampl))
+    )
+```
+
+```{r}
+show_cluster_results(
+    clustering_grid_results_sampl_70
+    , "Cluster Results | 70% PCA, 5K Sample"
+)
+```
+
+This graph gives us a sense for the "elbow point", the crux where we get diminishing returns in WSS from splitting into more and more clusters.
+
+That looks to be about 5 (CONFIRM). We could double check that pretty easily by running the above functions again but for all of the data:
+
+```{r eval = FALSE}
+clustering_grid_results_70 <-
+    clustering_grid |>
+    mutate(
+        kmeans = map(clusters, ~ cluster_kmeans(.x, swire_pca_70))
+        ,hclust = map(clusters, ~ cluster_hclust(.x, swire_pca_70))
+    )
+```
+
+```{r eval = FALSE}
+show_cluster_results(
+    clustering_grid_results_70
+    , "Cluster Results | 70% PCA, All Data"
+)
+```
+
+Let's generate cluster assignments!
+
+
+#### Cluster Assignments
+
+```{r}
+fit <- kmeans(swire_pca_70, 5)
+
+swire_cust_clustered <- swire_cust_enriched |> mutate(cluster = factor(fit$cluster))
+```
+
+
+#### Cluster Evaluation
+
+Now, let's evaluate the results, starting with how many customers are in each cluster:
+
+```{r}
+swire_cust_clustered |>
+  group_by(cluster) |>
+  count()
+```
+
+Other things to explore...
+
+
+#### Naming Clusters
+
+A big part of clustering is learning about what is driving the assignment. In so doing, we'll gain insight about the fields that best describe the cluster. Those insights will help us name the clusters, bringing them to life in a powerful way for our analysis.
+
+
+
 
 
 ### Approach N
