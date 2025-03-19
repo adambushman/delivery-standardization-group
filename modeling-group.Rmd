@@ -822,7 +822,6 @@ A separate model is developed for Local Market Partners (LMPs) to analyze order 
 
 This approach is another take on clustering. The idea is to enrich the data with additional features, most notably leveraging the spatial data we have to understand "neighboring" customers of swire. Here's a simple graphic to illustrate the idea:
 
-### Approach 4
 
 ![](img/nearest-customers-diagram.png)
 
@@ -1362,6 +1361,7 @@ print(head(cluster_3_gallons))
 
 ```
 
+
 ### Approach 4
 ##### Forecasting Data Preparation
 
@@ -1654,6 +1654,7 @@ To analyze their fulfillment patterns, I split this cluster into two separate da
 
 By leveraging this clustered fullfillment information, Swire’s sales team can identify customers who are selling more than they order and prioritize those with the highest potential for growth. This allows them to focus time and resources on businesses that would benefit from additional support, ultimately strengthening customer relationships and increasing sales opportunities. 
 
+
 ### Insight 4
 Since older and new customers behave differently, separate models were built for each group. Since categorical data (like trade channels) was important, those features were converted into dummy variables so the model could use them effectively. Both models used XGBoost with the same hyperparameters. The hyperparameters were adjusted numerous times to improve performance, but due to time constraints, the following hyperparameters were chosen for the best performance:
 
@@ -1664,11 +1665,13 @@ colsample_bytree = 0.7 to randomly sample features and reduce overfitting
 
 For older customers, the model achieved an RMSE of 22.24 and an MAE of 4.78, demonstrating good predictive accuracy with relatively low error values. This result suggests that the model effectively captured established customer behavior. For new customers, the model's performance was less optimal, with an RMSE of 38.59 and an MAE of 6.54. This higher error is expected given the limited transaction history available for these customers. The difference in performance highlights the difficulty in forecasting for new customers, where limited historical data introduces more volatility and noise.
 
+
 ## Future Improvements
 
 ### Approach 1
 
 While the models perform well, several enhancements could further improve their predictive accuracy and robustness. Advanced hyperparameter tuning, such as grid search or Bayesian optimization, could refine the Random Forest parameters beyond the current mtry = 6 selection. Additionally, exploring alternative machine learning models, such as XGBoost or LightGBM, may enhance performance by capturing more complex relationships in the data. Adjusting the classification threshold could help balance precision and recall, reducing false negatives while maintaining accuracy. Further, incorporating additional features, such as seasonality trends, customer engagement metrics, or external market data, could strengthen the model’s predictive power. Finally, deploying the model in a real-world environment with ongoing monitoring and periodic retraining would ensure adaptability to evolving customer behaviors and market conditions.
+
 
 ### Approach 4
 While the current forecast models perform okay, several enhancements could further improve forecasting accuracy. Additionally, while this model is focused on forecasting future orders, more needs to be done to be able to identify "high-growth" customers. 
