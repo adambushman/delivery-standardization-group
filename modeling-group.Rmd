@@ -33,7 +33,7 @@ In approach #2, Adam will explore an different approach to clustering, one that 
 
 # Data Preparation
 
-### Approach to Wrangling
+## Approach to Wrangling
 
 The dataset undergoes aggregation, merging, and transformation to optimize it for PAM clustering with Gower’s Distance and Random Forest classification.
 
@@ -46,7 +46,7 @@ Additionally, a Local Market Partner (LMP) subset is created by filtering custom
 To further optimize the dataset, all data is converted into an efficient data.table format for faster querying and merging. A stratified sample of 2,000 customer-year pairs ensures balanced representation across different customer segments. These enhancements ensure that both PAM clustering and Random Forest classification operate on clean, structured, and feature-rich data, improving customer segmentation and high-value order prediction across all customer groups, including Local Market Partners.
 
 
-### Libraries & Data
+## Libraries & Data
 
 We begin by setting up our session with the necessary libraries and data provided by Swire. These will be referenced often throughout this document.
 
@@ -140,6 +140,8 @@ theme_swire <- function() {
 }
 ```
 
+
+## Wrangling steps
 
 ### Prepping the Cost Data
 
@@ -357,11 +359,11 @@ glimpse(swire_data_full)
 
 Now, we have a single, standardized data set that is enriched, properly formatted, and well-suited to the remaining analysis.
 
-## Modeling - Approach 1
+# Modeling - Approach 1
 
-### Additional Data Preparation
+## Additional Data Preparation
 
-####A ggregate Customer Order Data by Year
+### Aggregate Customer Order Data by Year
 
 ```{r Aggregating Customer Order Data by Year}
 
