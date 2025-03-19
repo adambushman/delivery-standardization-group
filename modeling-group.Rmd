@@ -19,18 +19,21 @@ toc: true
 
 <br>
 
-## Business Problem Statement
+# Business Problem Statement
 
 Regional beverage bottler Swire Coca-Cola (SCCU) relies on two business models: 1) “Red Truck”, which features high-volume customers serviced personally by Swire, and 2) “White Truck” or “Alternate Route to Market”, which entails smaller customers serviced by a third-party distributor.
 
 Swire’s current segmenting strategy has led to misallocation of resources, inflated expenses, and missed opportunities from clients with high-growth potential. Swire aims to better algin their customers with the business proposition of these models by identifying customer characteristics and  rdering behavior that better determines the right business model for the long-term relationship.
 
-## Modeling  Introduction
+# Modeling  Introduction
 
-Lorem ipsum...
 
-## Data Preparation
-### Approach 1
+In approach #2, Adam will explore an different approach to clustering, one that leverages Principal Component Analysis and two different algorithms: kmeans and hierarchical. The goal is to identify unique customer groupings that could identify those that are 1) definitely red truck, 2) definitely white truck, and 3) it depends.
+
+
+# Data Preparation
+
+## Approach to Wrangling
 
 The dataset undergoes aggregation, merging, and transformation to optimize it for PAM clustering with Gower’s Distance and Random Forest classification.
 
@@ -42,11 +45,8 @@ Additionally, a Local Market Partner (LMP) subset is created by filtering custom
 
 To further optimize the dataset, all data is converted into an efficient data.table format for faster querying and merging. A stratified sample of 2,000 customer-year pairs ensures balanced representation across different customer segments. These enhancements ensure that both PAM clustering and Random Forest classification operate on clean, structured, and feature-rich data, improving customer segmentation and high-value order prediction across all customer groups, including Local Market Partners.
 
-### Approach 2
 
-Lorem ipsum...
-
-### Libraries & Data
+## Libraries & Data
 
 We begin by setting up our session with the necessary libraries and data provided by Swire. These will be referenced often throughout this document.
 
@@ -141,19 +141,7 @@ theme_swire <- function() {
 ```
 
 
-## Data Wrangling
-
-Having explored the files individually and making note of important details, we can now move on to wrangling these data into a single object, suitable for the more in-depth analysis upcoming. This wrangling will comprise of:
-
-* Prep individual files for level-of-detail
-* Combining the four (4) individual files we collected
-* Standardizing column names
-* Developing a theory for ordering said columns
-* Casting fields to their proper data types
-* Derived columns that further describe customer profiles
-* Settle on transactional level data with appropriate cost estimates
-* Etc.
-
+## Wrangling steps
 
 ### Prepping the Cost Data
 
@@ -371,10 +359,12 @@ glimpse(swire_data_full)
 
 Now, we have a single, standardized data set that is enriched, properly formatted, and well-suited to the remaining analysis.
 
-## Modeling - Approach 1
+# Modeling - Approach 1
 
-### Additional Data Preparation
-####Aggregate Customer Order Data by Year
+## Additional Data Preparation
+
+### Aggregate Customer Order Data by Year
+
 ```{r Aggregating Customer Order Data by Year}
 
 # Aggregate data by customer_number and year
@@ -392,6 +382,7 @@ str(customer_order_summary_by_year)
 ```
 
 #### Create Comprehensive Customer Dataset 
+
 Aggregate and Merge swire_data_full, customer_order_summary_by_year, swire_data_mode, swire_data_selected, and customer_neighbor_fields to create customer_full_summary
 
 ```{r Aggregated Dataset }
@@ -467,7 +458,9 @@ customer_full_summary <- customer_full_summary %>%
 ```
 
 #### Merge Neighbor Dataset 
+
 Merge customer_neighbor_fields to customer_full_summary
+
 ```{r ADD customer_neighbor_fields to customer_full_summary}
 
 # Convert data frames to data.tables for efficient merging
@@ -489,7 +482,9 @@ customer_full_summary <- merge(customer_full_summary,
 ```
 
 ### Modeling
+
 #### PAM Clustering with Gower’s Distance
+
 ```{r PAM Clustering with Gower’s Distance}
 
 # Make a copy of the dataset 
@@ -648,6 +643,7 @@ $ order_over_500         : num  0 0 1 0 0 0 0 0 1 1 ...
  $ customer_number        : chr  "500245678" "500245678" "500245685" "500245685" ...
 
 #### ALL Customers: SMOTE-enhanced Random Forest model with hyperparamter tuning Over 500
+
 ```{r smote_rf_tuning, echo=FALSE}
 
 # Convert categorical variables to factors
@@ -725,6 +721,7 @@ varImpPlot(rf_model)
 ```
 
 #### Local Market Partners: SMOTE-enhanced Random Forest model with hyperparamter tuning Over 500
+
 ```{r lmp_smote_rf_tuning, echo=FALSE}
 
 # Filter CLARA dataset to include only Local Market Partners (LMP)
@@ -818,10 +815,10 @@ The second stage involves predicting high-value orders (order_over_500) using Ra
 
 A separate model is developed for Local Market Partners (LMPs) to analyze order behaviors among customers who purchase only fountain drinks, excluding CO2, cans, and bottles. This targeted segmentation enhances the relevance of predictive modeling for different customer groups.
 
+
 ### Approach 2
 
 This approach is another take on clustering. The idea is to enrich the data with additional features, most notably leveraging the spatial data we have to understand "neighboring" customers of swire. Here's a simple graphic to illustrate the idea:
-
 
 ![](img/nearest-customers-diagram.png)
 
@@ -1244,16 +1241,36 @@ swire_cust_clustered |>
   count()
 ```
 
-Other things to explore...
+We can do a lot more, like describe the unique attributes of each. For now, this is all we have time for.
 
 
-#### Naming Clusters
+### Insights
 
-A big part of clustering is learning about what is driving the assignment. In so doing, we'll gain insight about the fields that best describe the cluster. Those insights will help us name the clusters, bringing them to life in a powerful way for our analysis.
+We've learned a few things through this exercise:
+
+1. We can derive a lot of additional insight from this data through some advanced techniques. The Haversine Distance applied to the five nearest customers yielded a lot of features that serve as a proxy for describing the area (i.e. density of customers, demand for products, etc)
+
+2. PCA was quite performant; there was a lot of redundant features telling a similar story. We captured 80% of the variance in just 33 of 95 principal components. That saves a lot of processing power and makes our clustering work more meaningful
+
+3. The clustering algorithms we explored suggest 5 unique clusters as having a fair balance of generalizing the customers while also making them reasonably distinct. 99% of customers fall into the first cluster, leading to roughly 3 possibilities:
+
+  1. Most customers align with our idea of "Red Truck"; this is highly unlikely. Our EDA showed the 75%tile of customers annual order volume was around the 400 threshold.
+
+  2. Most customers align with our idea of a "White Truck"; this is possible but would frankly be a very powerful, albeit strong, statement. 
+
+  3. Most customers fall into a middle ground that isn't well understood; this would be pretty disappointing as it wouldn't empower Swire to view their business any differently
+
+
+### Future Improvements
+
+A big part of clustering is learning about what is driving the assignment. In so doing, we'll gain insight about the fields that best describe the cluster. Those insights will help us name the clusters, bringing them to life in a powerful way for viewing the business.
+
+This is the next, crucial step. In its current form, the clusters are meaningless. Despite lacking time to do this piece for this milestone, it's a top priority in the early stages of preparing a presentation.
 
 
 
-### Approach 3
+## Approach 3
+
 
 ```{r}
 # Data Cleaning
