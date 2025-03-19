@@ -25,13 +25,26 @@ Regional beverage bottler Swire Coca-Cola (SCCU) relies on two business models: 
 
 Swire’s current segmenting strategy has led to misallocation of resources, inflated expenses, and missed opportunities from clients with high-growth potential. Swire aims to better algin their customers with the business proposition of these models by identifying customer characteristics and  rdering behavior that better determines the right business model for the long-term relationship.
 
-
 ## Modeling  Introduction
 
 Lorem ipsum...
 
+## Data Preparation
+### Approach 1
 
-## Preparation
+The dataset undergoes aggregation, merging, and transformation to optimize it for PAM clustering with Gower’s Distance and Random Forest classification.
+
+First, key numerical and categorical features are selected, with categorical variables encoded and missing values imputed ("999" for categorical, median values for numerical). Data is aggregated at the customer-year level, calculating total and average order values, and deriving customer tenure from the difference between the latest transaction date and first recorded delivery. To maintain consistency, a mode function (get_mode) is applied to categorical variables such as trade channel, sub-trade channel, order type, and local market partner status, ensuring representative values for each customer. The resulting dataset, customer_full_summary, merges customer transaction summaries with these aggregated categorical features.
+
+To incorporate local market dynamics, customer_full_summary is merged with customer_neighbor_fields, adding neighbor-based attributes such as average order transactions, return frequency, primary group distribution, and geospatial attributes (latitude, longitude, zip code). These additional features enhance segmentation and predictive modeling by capturing regional purchasing patterns.
+
+Additionally, a Local Market Partner (LMP) subset is created by filtering customers who purchase only fountain drinks while excluding CO2, cans, and bottles (local_market_partner = 1 and co2_customer = 0). This segmentation allows for a more targeted analysis of smaller, high-frequency purchasers.
+
+To further optimize the dataset, all data is converted into an efficient data.table format for faster querying and merging. A stratified sample of 2,000 customer-year pairs ensures balanced representation across different customer segments. These enhancements ensure that both PAM clustering and Random Forest classification operate on clean, structured, and feature-rich data, improving customer segmentation and high-value order prediction across all customer groups, including Local Market Partners.
+
+### Approach 2
+
+Lorem ipsum...
 
 ### Libraries & Data
 
@@ -55,8 +68,24 @@ library('ggplot2')    # Data visualization
 library('readr')      # Read/write CSV & text files
 library('knitr')      # Generate dynamic reports
 library('leaflet')    # Generate dynamic map
+library('dbscan')      # Density-based clustering
+library('dendextend')  # Extends dendrogram functionality
+library('caret')       # Machine learning and model training
+library('Matrix')      # Sparse and dense matrix operations
+library('parallel')    # Parallel computing
+library('glmnet')      # Lasso and ridge regression
+library('xgboost')     # Gradient boosting machine learning
+library('randomForest')# Random forest classifier
+library('fastDummies') # One-hot encoding for categorical variables
+library('ROSE')        # Oversampling and undersampling for imbalanced data
+library('smotefamily') # SMOTE for class imbalance
+library('cluster')     # Clustering algorithms
+library('factoextra')  # Extract and visualize clustering results
+library('data.table')  # Fast data manipulation
+library('FNN')         # Fast nearest neighbors
+library('kableExtra')  # Enhancements for tables in Markdown/HTML reportslibrary(Cairo)
+library('Cairo')       # Ensures sharper, more professional-looking graphics in Markdown/HTML reports and printed documents
 library('geosphere')
-library('caret')
 library("tidymodels")           # Used for its modeling framework
 library("tidyclust")            # Used for clustering approaches
 library("kernlab")              # Weighted kernal k-means
@@ -68,6 +97,18 @@ transactions <- as.data.frame(data.table::fread("data/transactional_data.csv"))
 customer_address <- read.csv("data/customer_address_and_zip_mapping.csv")
 customer_profile <- read.csv("data/customer_profile.csv")
 delivery_cost <- readxl::read_xlsx('data/delivery_cost_data.xlsx')
+customer_neighbors_clean <- as.data.frame(data.table::fread("data/customer_neighbor_fields.csv")) |>
+  mutate(customer_number = as.character(customer_number))
+
+# Ensure a writable directory
+dir.create("plots", showWarnings = FALSE)
+knitr::opts_chunk$set(fig.path = "plots/", dev = "png")
+
+# If on a headless system
+knitr::opts_chunk$set(dev = "CairoPNG")
+
+# Close any open graphics devices
+graphics.off()
 ```
 
 ```{r include = FALSE}
@@ -329,13 +370,452 @@ glimpse(swire_data_full)
 
 Now, we have a single, standardized data set that is enriched, properly formatted, and well-suited to the remaining analysis.
 
+## Modeling - Approach 1
+
+### Additional Data Preparation
+####Aggregate Customer Order Data by Year
+```{r Aggregating Customer Order Data by Year}
+
+# Aggregate data by customer_number and year
+customer_order_summary_by_year <- swire_data_full %>%
+  group_by(customer_number, year) %>%
+  summarise(
+    combined_ordered_total = sum(ordered_total, na.rm = TRUE),
+    average_order = mean(ordered_total, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Check structure of the dataset
+str(customer_order_summary_by_year)
+
+```
+
+#### Create Comprehensive Customer Dataset 
+Aggregate and Merge swire_data_full, customer_order_summary_by_year, swire_data_mode, swire_data_selected, and customer_neighbor_fields to create customer_full_summary
+
+```{r Aggregated Dataset }
+
+# Function to get the most common (mode) value for categorical fields
+get_mode <- function(x) {
+  x <- na.omit(x) # Remove NAs
+  if(length(x) == 0) return(NA) # Return NA if empty
+  unique_x <- unique(x)
+  unique_x[which.max(tabulate(match(x, unique_x)))]
+}
+
+# Aggregate swire_data_full to find the most common value for each categorical feature per customer
+swire_data_mode <- swire_data_full %>%
+  group_by(customer_number) %>%
+  summarise(
+    primary_group_number = get_mode(primary_group_number),
+    cold_drink_channel = get_mode(cold_drink_channel),
+    frequent_order_type = get_mode(frequent_order_type),
+    trade_channel = get_mode(trade_channel),
+    sub_trade_channel = get_mode(sub_trade_channel),
+    local_market_partner = get_mode(local_market_partner),
+    co2_customer = get_mode(co2_customer),
+    city = get_mode(city),
+    state = get_mode(state),
+    state_abbr = get_mode(state_abbr),
+    county = get_mode(county),
+    order_type = get_mode(order_type),
+    .groups = "drop"
+  )
+
+# Merge with customer_order_summary_by_year
+customer_full_summary <- customer_order_summary_by_year %>%
+  left_join(swire_data_mode, by = "customer_number")
+
+# Replace NA primary_group_number with "999"
+customer_full_summary <- customer_full_summary %>%
+  mutate(primary_group_number = ifelse(is.na(primary_group_number), "999", primary_group_number))
+
+# Add a binary column order_over_500
+customer_full_summary <- customer_full_summary %>%
+  mutate(order_over_500 = ifelse(combined_ordered_total > 500, 1, 0))
+
+# Add a binary column order_under_100
+customer_full_summary <- customer_full_summary %>%
+  mutate(order_under_100 = ifelse(combined_ordered_total < 100, 1, 0)) 
+
+# Aggregate missing columns to remove duplicates
+swire_data_selected <- swire_data_full %>%
+  group_by(customer_number) %>%
+  summarise(
+    primary_group_customers = max(primary_group_customers, na.rm = TRUE),
+    on_boarding_date = min(on_boarding_date, na.rm = TRUE),  # Earliest onboarding date
+    first_delivery_date = min(first_delivery_date, na.rm = TRUE),  # Earliest delivery date
+    zip = get_mode(zip),
+    lat = mean(lat, na.rm = TRUE),  # Average latitude
+    lon = mean(lon, na.rm = TRUE),  # Average longitude
+    transaction_date = max(transaction_date, na.rm = TRUE),  # Latest transaction
+    week = get_mode(week),
+    return_frequency = mean(return_frequency, na.rm = TRUE),  # Average return frequency
+    .groups = "drop"
+  )
+
+# Merge deduplicated data with customer_full_summary
+customer_full_summary <- customer_full_summary %>%
+  left_join(swire_data_selected, by = "customer_number")
+
+customer_full_summary <- customer_full_summary %>%
+  mutate(customer_tenure = as.numeric(difftime(transaction_date, first_delivery_date, units = "weeks")) / 52)
+
+# Check structure of the dataset
+# str(customer_full_summary)
+```
+
+#### Merge Neighbor Dataset 
+Merge customer_neighbor_fields to customer_full_summary
+```{r ADD customer_neighbor_fields to customer_full_summary}
+
+# Convert data frames to data.tables for efficient merging
+customer_full_summary <- as.data.table(customer_full_summary)
+customer_neighbor_fields <- as.data.table(customer_neighbor_fields)
+
+# Convert customer_number to character to ensure proper merging
+customer_full_summary[, customer_number := as.character(customer_number)]
+customer_neighbor_fields[, customer_number := as.character(customer_number)]
+
+# Merge customer_neighbor_fields into customer_full_summary
+customer_full_summary <- merge(customer_full_summary, 
+                               customer_neighbor_fields, 
+                               by = "customer_number", 
+                               all.x = TRUE)
+
+# Check structure after merging
+#str(customer_full_summary)
+```
+
+### Modeling
+#### PAM Clustering with Gower’s Distance
+```{r PAM Clustering with Gower’s Distance}
+
+# Make a copy of the dataset 
+CLARA <- customer_full_summary 
+
+# Select Key Features for CLARA Clustering in R
+clustering_data <- CLARA %>%
+  select(customer_number, year, primary_group_number, cold_drink_channel, frequent_order_type, trade_channel)
+
+# Preprocess Data for CLARA Clustering - Encoding Categorical Variables
+clustering_data <- clustering_data %>%
+  mutate(across(where(is.character) & !all_of("customer_number"), as.factor)) %>%  # Exclude customer_number
+  mutate(across(where(is.factor), as.numeric))  # Convert factors to numeric encoding
+
+
+# Impute missing values with column medians (instead of dropping them)
+clustering_data <- clustering_data %>%
+  mutate(across(where(is.numeric), ~replace_na(., median(., na.rm = TRUE))))
+
+# Set Seed 
+set.seed(123)  # Ensure reproducibility
+
+# Convert to data.table for efficient sampling
+clustering_data <- as.data.table(clustering_data)
+
+# Make sure `customer_number` is character for correct merging
+clustering_data[, customer_number := as.character(customer_number)]
+
+# Sample **2000 unique customer-year pairs** (ensure correct format)
+clustering_sample <- clustering_data[, .SD[sample(.N, min(.N, 2000))], by = year]
+
+# Compute Gower’s Distance using daisy() for mixed data clustering
+gower_dist <- daisy(clustering_sample %>% select(-customer_number, -year), metric = "gower")
+
+# PAM Clustering with Gower's Distance
+set.seed(123)
+PAM_result <- pam(gower_dist, k = 9)  # Using PAM instead of CLARA
+
+# Assign clusters to the sampled dataset
+clustering_sample$cluster <- as.factor(PAM_result$clustering)
+
+# Convert datasets to data.table for efficient merging
+CLARA <- as.data.table(CLARA)
+clustering_sample <- as.data.table(clustering_sample)
+
+# Ensure `customer_number` is character in both datasets for merging
+CLARA[, customer_number := as.character(customer_number)]
+clustering_sample[, customer_number := as.character(customer_number)]
+
+# Merge assigned clusters back into the full dataset
+CLARA <- merge(
+  CLARA,
+  clustering_sample[, .(customer_number, year, cluster)], 
+  by = c("customer_number", "year"), 
+  all.x = TRUE
+)
+
+# Assign missing clusters using Nearest Neighbor Matching (KNN)
+missing_customers <- CLARA[is.na(cluster), ]
+non_missing_customers <- CLARA[!is.na(cluster), ]
+
+if (nrow(non_missing_customers) > 0 & nrow(missing_customers) > 0) {
+  knn_result <- knn(
+    train = non_missing_customers %>% select(combined_ordered_total, average_order, return_frequency, customer_tenure),
+    test = missing_customers %>% select(combined_ordered_total, average_order, return_frequency, customer_tenure),
+    cl = non_missing_customers$cluster,
+    k = min(5, nrow(non_missing_customers))  # Prevents errors if fewer than 5 observations
+  )
+  
+  # Assign predicted clusters to missing customers
+  CLARA[is.na(cluster), cluster := knn_result]
+}
+
+# Compute Cluster Centroids for Missing Cluster Assignment
+if (nrow(CLARA[is.na(cluster),]) > 0 & nrow(non_missing_customers) > 0) {
+  # Compute cluster centroids
+  cluster_centers <- non_missing_customers %>%
+    group_by(cluster) %>%
+    summarise(across(c(combined_ordered_total, average_order, return_frequency, customer_tenure), mean))
+
+  # Assig Missing Clusters Using Nearest Centroid Matching
+  CLARA[is.na(cluster), cluster := apply(
+    CLARA[is.na(cluster), .(combined_ordered_total, average_order, return_frequency, customer_tenure)], 
+    1, 
+    function(x) {
+      distances <- apply(cluster_centers[, -1], 1, function(centroid) sum((x - centroid)^2, na.rm = TRUE))
+      return(cluster_centers$cluster[which.min(distances)])  # Assign to closest centroid
+    }
+  )]
+}
+
+# Randomly Assigning Missing Clusters from Available Clusters
+available_clusters <- unique(CLARA$cluster[!is.na(CLARA$cluster)])
+
+if (length(available_clusters) > 0 & nrow(CLARA[is.na(cluster),]) > 0) {
+  CLARA[is.na(cluster), cluster := sample(available_clusters, nrow(CLARA[is.na(cluster),]), replace = TRUE)]
+}
+
+# Preform Multidimensional Scaling (MDS) on Gower’s Distance Matrix
+mds_data <- cmdscale(as.dist(gower_dist), k = 2)  # Convert Gower’s distance into 2D space
+
+# Create a dataframe for plotting
+cluster_plot_data <- as.data.frame(mds_data)
+cluster_plot_data$cluster <- PAM_result$clustering  # Assign cluster labels
+
+# Visualize the Clusters
+ggplot(cluster_plot_data, aes(V1, V2, color = as.factor(cluster))) +
+  geom_point(alpha = 0.7, size = 3) +
+  labs(title = "PAM Clustering with Gower’s Distance",
+       x = "MDS Dimension 1",
+       y = "MDS Dimension 2",
+       color = "Cluster") +
+  theme_minimal()
+
+# Verify that Every Customer has a Cluster
+table(is.na(CLARA$cluster))  # Should return only FALSE
+
+# str(CLARA)
+# head(CLARA)
+ 
+ 
+ # Calculate silhouette scores using Gower's distance and cluster assignments
+silhouette_score <- silhouette(PAM_result$clustering, gower_dist)
+
+# Print average silhouette width (higher is better)
+cat("Average silhouette width:", mean(silhouette_score[, 3]), "\n")
+
+# Visualize the silhouette plot
+plot(silhouette_score, main = "Silhouette Plot for PAM Clustering")
+
+# K = 9
+# Average silhouette width: 0.439543
+```
+
+
+$ order_over_500         : num  0 0 1 0 0 0 0 0 1 1 ...
+ 
+ $ primary_group_number   : chr  "999" "999" "999" "999" ...
+ $ cold_drink_channel     : Factor w/ 9 levels "ACCOMMODATION",..: 5 5 4 4 6 6 5 5 4 4 ...
+ $ frequent_order_type    : Factor w/ 6 levels "CALL CENTER",..: 6 6 5 5 1 1 5 5 5 5 ...
+ $ trade_channel          : Factor w/ 26 levels "ACADEMIC INSTITUTION",..: 18 18 8 8 23 23 18 18 15 15 ...
+ $ sub_trade_channel      : Factor w/ 48 levels "ASIAN FAST FOOD",..: 36 36 42 42 29 29 36 36 34 34 ...
+ $ local_market_partner   : logi  TRUE TRUE TRUE TRUE TRUE TRUE ...
+ $ co2_customer           : logi  TRUE TRUE TRUE TRUE FALSE FALSE ...
+ $ city                   : chr  "Marysville" "Marysville" "Cecilton" "Cecilton" ...
+ $ order_type             : Factor w/ 7 levels "CALL CENTER",..: 7 7 3 3 1 1 1 1 3 3 ...
+ $ primary_group_customers: num  0 0 0 0 11 11 0 0 0 0 ...
+ $ return_frequency       : num  0.773 0.773 0 0 0 ...
+ $ customer_tenure        : num  6.7 6.7 6.48 6.48 1.79 ...
+ $ cluster                : Factor w/ 4 levels "1","2","3","4": 1 1 1 1 3 3 1 1 2 1 ..
+ 
+ 
+ 
+ $ average_order          : num  13.7 22.6 13.1 28.4 3.5 ...
+ $ combined_ordered_total : num  370 383.5 591.5 482 17.5 ...
+ $ customer_number        : chr  "500245678" "500245678" "500245685" "500245685" ...
+
+#### ALL Customers: SMOTE-enhanced Random Forest model with hyperparamter tuning Over 500
+```{r smote_rf_tuning, echo=FALSE}
+
+# Convert categorical variables to factors
+categorical_vars <- c("primary_group_number", "cold_drink_channel", "frequent_order_type",
+                      "trade_channel", "sub_trade_channel", "order_type", "cluster")
+
+CLARA[, (categorical_vars) := lapply(.SD, as.factor), .SDcols = categorical_vars]
+
+# Convert logical variables to numeric (TRUE/FALSE -> 1/0)
+CLARA[, local_market_partner := as.numeric(local_market_partner)]
+CLARA[, co2_customer := as.numeric(co2_customer)]
+
+# Handle high-cardinality categorical features by integer encoding
+for (col in categorical_vars) {
+  if (nlevels(CLARA[[col]]) > 53) {
+    CLARA[[col]] <- as.integer(as.factor(CLARA[[col]]))  # Convert to numeric encoding
+  }
+}
+
+features <- c("primary_group_number", "cold_drink_channel", "frequent_order_type",
+              "trade_channel", "sub_trade_channel", "local_market_partner",
+              "co2_customer", "order_type", "primary_group_customers",
+              "return_frequency", "customer_tenure", "cluster", 
+              "neighbor_avg_dist_km", "neighbor_primary_group_count", "neighbor_local_market_partners", "neighbor_avg_return_freq",
+              "neighbor_avg_order_transactions_2024", "neighbor_avg_order_transaction_std_2024", "neighbor_avg_ordered_total_2024")
+
+# Prepare dataset
+df <- CLARA[, c(features, "order_over_500"), with = FALSE]
+df$order_over_500 <- as.factor(df$order_over_500)  # Convert target to factor
+
+# Split dataset into train and test sets
+set.seed(42)
+trainIndex <- createDataPartition(df$order_over_500, p = 0.8, list = FALSE)
+train_data <- df[trainIndex, ]
+test_data <- df[-trainIndex, ]
+
+# Apply SMOTE using the ROSE package
+train_data_balanced <- ovun.sample(order_over_500 ~ ., data = train_data, method = "over", p = 0.5, seed = 42)$data
+
+# Hyperparameter tuning using tuneRF()
+set.seed(42)
+best_mtry <- tuneRF(train_data_balanced[, -which(names(train_data_balanced) == "order_over_500")], 
+                    train_data_balanced$order_over_500, 
+                    stepFactor = 1.5, improve = 0.01, trace = TRUE)
+
+# Select best mtry value
+optimal_mtry <- best_mtry[which.min(best_mtry[, 2]), 1]
+cat("Optimal mtry value:", optimal_mtry, "\n")
+
+# Train Optimized Random Forest Model
+set.seed(42)
+rf_model <- randomForest(order_over_500 ~ ., data = train_data_balanced, 
+                         ntree = 200,  # Increased trees for better accuracy
+                         mtry = optimal_mtry, 
+                         importance = TRUE)
+
+
+# Predictions on test data
+predictions <- predict(rf_model, test_data)
+
+# Model Evaluation
+conf_matrix <- confusionMatrix(predictions, test_data$order_over_500)
+print(conf_matrix)
+
+# Feature Importance
+importance(rf_model)
+varImpPlot(rf_model)
+
+# When the model predicts 1, it is correct about 76.8% of the time.
+# Accuracy: 88.65%
+# Precision: 76.8%
+# Specificity/Recall: 72.1% (some false negatives will be missed)
+#  F1-score: 74.4%
+
+```
+
+#### Local Market Partners: SMOTE-enhanced Random Forest model with hyperparamter tuning Over 500
+```{r lmp_smote_rf_tuning, echo=FALSE}
+
+# Filter CLARA dataset to include only Local Market Partners (LMP)
+CLARA_LMP <- CLARA %>%
+  filter(local_market_partner == 1 & co2_customer == 0)
+
+# Save the dataset for further analysis
+write.csv(CLARA_LMP, "CLARA_LMP.csv", row.names = FALSE)
+
+# Check the structure and preview the dataset
+str(CLARA_LMP)
+# head(CLARA_LMP)
+
+# Convert categorical variables to factors
+categorical_vars <- c("primary_group_number", "cold_drink_channel", "frequent_order_type",
+                      "trade_channel", "sub_trade_channel", "order_type", "cluster")
+
+CLARA_LMP[, (categorical_vars) := lapply(.SD, as.factor), .SDcols = categorical_vars]
+
+# Convert logical variables to numeric (TRUE/FALSE -> 1/0)
+CLARA_LMP[, local_market_partner := as.numeric(local_market_partner)]
+CLARA_LMP[, co2_customer := as.numeric(co2_customer)]
+
+# Handle high-cardinality categorical features by integer encoding
+for (col in categorical_vars) {
+  if (nlevels(CLARA_LMP[[col]]) > 53) {
+    CLARA_LMP[[col]] <- as.integer(as.factor(CLARA_LMP[[col]]))  # Convert to numeric encoding
+  }
+}
+
+features <- c("primary_group_number", "cold_drink_channel", "frequent_order_type",
+              "trade_channel", "sub_trade_channel",# "order_type", "primary_group_customers",
+              "return_frequency", "customer_tenure", "cluster", 
+              "neighbor_avg_dist_km", "neighbor_primary_group_count", "neighbor_local_market_partners", "neighbor_avg_return_freq",
+              "neighbor_avg_order_transactions_2024", "neighbor_avg_order_transaction_std_2024", "neighbor_avg_ordered_total_2024")
+
+# Prepare dataset
+df <- CLARA_LMP[, c(features, "order_over_500"), with = FALSE]
+df$order_over_500 <- as.factor(df$order_over_500)  # Convert target to factor
+
+# Split dataset into train and test sets
+set.seed(42)
+trainIndex <- createDataPartition(df$order_over_500, p = 0.8, list = FALSE)
+train_data <- df[trainIndex, ]
+test_data <- df[-trainIndex, ]
+
+# Apply SMOTE using the ROSE package
+train_data_balanced <- ovun.sample(order_over_500 ~ ., data = train_data, method = "over", p = 0.5, seed = 42)$data
+
+# Hyperparameter tuning using tuneRF()
+set.seed(42)
+best_mtry <- tuneRF(train_data_balanced[, -which(names(train_data_balanced) == "order_over_500")], 
+                    train_data_balanced$order_over_500, 
+                    stepFactor = 1.5, improve = 0.01, trace = TRUE)
+
+# Select best mtry value
+optimal_mtry <- best_mtry[which.min(best_mtry[, 2]), 1]
+cat("Optimal mtry value:", optimal_mtry, "\n")
+
+# Train Optimized Random Forest Model
+set.seed(42)
+rf_model <- randomForest(order_over_500 ~ ., data = train_data_balanced, 
+                         ntree = 200,  # Increased trees for better accuracy
+                         mtry = optimal_mtry, 
+                         importance = TRUE)
+
+
+# Predictions on test data
+predictions <- predict(rf_model, test_data)
+
+# Model Evaluation
+conf_matrix <- confusionMatrix(predictions, test_data$order_over_500)
+print(conf_matrix)
+
+# Feature Importance
+importance(rf_model)
+varImpPlot(rf_model)
+```
 
 ## Modeling Approaches
 
 ### Approach 1
 
-Lorem ipsum...
+**Clustering with PAM and Gower’s Distance**
 
+Customers are segmented based on purchasing behavior and attributes to enhance predictive modeling. Key numerical and categorical variables are selected, categorical features are encoded, and missing values are imputed using medians. Since the dataset includes mixed data types, Gower’s Distance is computed to measure similarity, followed by PAM clustering to create nine clusters (k = 9). Customers outside the initial 2,000 sampled dataset are assigned clusters using K-Nearest Neighbors (KNN), centroid matching, or random assignment. Cluster quality is assessed using Multidimensional Scaling (MDS) and Silhouette Scores (Avg. Silhouette Width = 0.44), confirming meaningful segmentation..
+
+**Predicting High-Value Orders with Random Forest**
+
+The second stage involves predicting high-value orders (order_over_500) using Random Forest, incorporating transaction history, customer attributes, clustering results, and neighbor-based features. The dataset is split 80/20 into training and testing sets, and SMOTE (Synthetic Minority Oversampling) from the ROSE package is applied to balance the dataset. Hyperparameter tuning (tuneRF()) optimizes the mtry value to 6, ensuring the best number of features for each split.
+
+A separate model is developed for Local Market Partners (LMPs) to analyze order behaviors among customers who purchase only fountain drinks, excluding CO2, cans, and bottles. This targeted segmentation enhances the relevance of predictive modeling for different customer groups.
 
 ### Approach 2
 
@@ -545,11 +1025,6 @@ customer_neighbors_clean <-
 #### Enriching Additional Values
 
 We now gave great summary values for the neighbors of each customer. Let's now get our full customer level of detail data together and finalize some data enrichment:
-
-```{r include = FALSE}
-customer_neighbors_clean <- as.data.frame(data.table::fread("data/customer_neighbor_fields.csv")) |>
-  mutate(customer_number = as.character(customer_number))
-```
 
 ```{r}
 swire_cust_enriched <- 
@@ -787,8 +1262,9 @@ Lorem ipsum...
 
 ### Insight 1
 
-Lorem ipsum...
+The Random Forest model for all customers demonstrated strong predictive performance, achieving 88.65% accuracy, 76.8% precision, and 72.1% recall in predicting high-value orders. The balanced accuracy of 83.12% indicates that the model effectively differentiates between high and low-value orders. Feature importance analysis highlights customer cluster assignment, tenure, trade channel, order type, and neighbor-based attributes as key predictors, reinforcing the effectiveness of PAM clustering in improving segmentation. Additionally, SMOTE successfully balanced the dataset, reducing bias toward majority-class customers and improving classification performance.
 
+The Local Market Partner (LMP) Random Forest model (200 trees) achieved even stronger predictive performance, with 90.19% accuracy, 94.83% sensitivity, and 72.4% specificity, demonstrating its ability to correctly classify high-value LMP customers. Similar to the all customer data set model, key predictors in the LMP model included customer segmentation (PAM clustering), tenure, trade channel, and neighbor-based attributes.
 
 ### Insight 2
 
@@ -802,7 +1278,9 @@ Lorem ipsum...
 
 ## Future Improvements
 
-Lorem ipsum...
+### Approach 1
+
+While the models perform well, several enhancements could further improve their predictive accuracy and robustness. Advanced hyperparameter tuning, such as grid search or Bayesian optimization, could refine the Random Forest parameters beyond the current mtry = 6 selection. Additionally, exploring alternative machine learning models, such as XGBoost or LightGBM, may enhance performance by capturing more complex relationships in the data. Adjusting the classification threshold could help balance precision and recall, reducing false negatives while maintaining accuracy. Further, incorporating additional features, such as seasonality trends, customer engagement metrics, or external market data, could strengthen the model’s predictive power. Finally, deploying the model in a real-world environment with ongoing monitoring and periodic retraining would ensure adaptability to evolving customer behaviors and market conditions.
 
 
 ## Conclusion
