@@ -1253,13 +1253,11 @@ A big part of clustering is learning about what is driving the assignment. In so
 
 
 
-
-
 ### Approach 3
 
-```{r, results = "hide", warning=FALSE, message=FALSE}
+```{r}
 # Data Cleaning
-transactional_df <- transactional_data %>%
+transactional_df <- transactions %>%
   clean_names() %>%
   mutate(transaction_date = ymd(transaction_date),
          customer_number = as.character(customer_number)) %>%
@@ -1341,7 +1339,7 @@ print(kable(cluster_summary, caption = "Cluster Summary Table"))
 
 #### Clustered Fulfillment Rate Summary
 ### Extract Gallons and Cases Customers from Cluster Three for Summary
-```{r, results = "hide", warning=FALSE, message=FALSE}
+```{r}
 # Extract Gallons and Cases Customers from Cluster Three
 
 cluster_3_customers <- transactional_df %>% filter(cluster == 3)
@@ -1656,6 +1654,7 @@ By leveraging this clustered fullfillment information, Swire’s sales team can 
 
 
 ### Insight 4
+
 Since older and new customers behave differently, separate models were built for each group. Since categorical data (like trade channels) was important, those features were converted into dummy variables so the model could use them effectively. Both models used XGBoost with the same hyperparameters. The hyperparameters were adjusted numerous times to improve performance, but due to time constraints, the following hyperparameters were chosen for the best performance:
 
 max_depth = 6 to control complexity
@@ -1671,6 +1670,9 @@ For older customers, the model achieved an RMSE of 22.24 and an MAE of 4.78, dem
 ### Approach 1
 
 While the models perform well, several enhancements could further improve their predictive accuracy and robustness. Advanced hyperparameter tuning, such as grid search or Bayesian optimization, could refine the Random Forest parameters beyond the current mtry = 6 selection. Additionally, exploring alternative machine learning models, such as XGBoost or LightGBM, may enhance performance by capturing more complex relationships in the data. Adjusting the classification threshold could help balance precision and recall, reducing false negatives while maintaining accuracy. Further, incorporating additional features, such as seasonality trends, customer engagement metrics, or external market data, could strengthen the model’s predictive power. Finally, deploying the model in a real-world environment with ongoing monitoring and periodic retraining would ensure adaptability to evolving customer behaviors and market conditions.
+
+### Approach 3
+While the clustered fulfillment model offers insights into high-performing and high-potential customers, identifying individual customers would provide additional value for salespeople and other points of contact who have direct relationships with them. Their personal experience could help interpret the data more effectively. Additionally, incorporating features that classify customers by business type could enhance clustering, offering more precise insights into fulfillment rates across different industries.
 
 
 ### Approach 4
@@ -1701,7 +1703,7 @@ orem ipsum...
 
 Each member contributed with individual work as described below:
 
-Lorem ipsum...
+Each group member created individual models and worked together to combine said models into one cohesive modeling project.
 
 
 Thank you,
