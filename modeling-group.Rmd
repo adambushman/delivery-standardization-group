@@ -7,10 +7,11 @@ author:
   - Tyler Swanson
   - Zac Mendenhall
 date: "3/18/2025"
-output:
-    html_document:
+format: 
+    html:
+        css: styles.css
         theme: simplex
-        self_contained: true
+        toc: true
         embed-resources: true
 toc: true
 ---
@@ -30,13 +31,13 @@ Swire’s current segmenting strategy has led to misallocation of resources, inf
 
 Our approach enhances Swire Coca-Cola’s customer segmentation by analyzing transactional and profile data to identify key patterns. We apply clustering techniques to group similar customers and predictive modeling to forecast ordering behavior. These insights help optimize resource allocation, reduce costs, and identify high-growth opportunities.
 
-In Approach #1, Tyler applies PAM clustering with Gower’s Distance to segment customers based on purchasing behavior, handling mixed data types and assigning missing clusters using KNN, Centroid Matching, and Random Assignment. A Random Forest model is then trained to predict high-value orders, leveraging customer attributes, clustering results, and neighbor-based features, with SMOTE balancing and hyperparameter tuning optimizing performance.
+In **Approach #1**, Tyler applies PAM clustering with Gower’s Distance to segment customers based on purchasing behavior, handling mixed data types and assigning missing clusters using KNN, Centroid Matching, and Random Assignment. A Random Forest model is then trained to predict high-value orders, leveraging customer attributes, clustering results, and neighbor-based features, with SMOTE balancing and hyperparameter tuning optimizing performance.
 
-In approach #2, Adam will explore an different approach to clustering, one that leverages Principal Component Analysis and two different algorithms: kmeans and hierarchical. The goal is to identify unique customer groupings that could identify those that are 1) definitely red truck, 2) definitely white truck, and 3) it depends.
+In **Approach #2**, Adam will explore an different approach to clustering, one that leverages Principal Component Analysis and two different algorithms: kmeans and hierarchical. The goal is to identify unique customer groupings that could identify those that are 1) definitely red truck, 2) definitely white truck, and 3) it depends.
 
-In Approach #3 Zac  applied a clustering approach to transactional data, focusing on the relationship between gallons and cases ordered versus what was actually delivered. He created a new column that captures fulfillment and returns, providing a clearer view of how orders are being met.
+In **Approach #3**, Zac  applied a clustering approach to transactional data, focusing on the relationship between gallons and cases ordered versus what was actually delivered. He created a new column that captures fulfillment and returns, providing a clearer view of how orders are being met.
 
-In approach #4, Georgia will explore a fulfillment clustering model based on customer behavior. Additionally, she will experiment with forecasting approaches based on the two years worth of ordering volumes we have.
+In **Approach #4**, Georgia will explore a fulfillment clustering model based on customer behavior. Additionally, she will experiment with forecasting approaches based on the two years worth of ordering volumes we have.
 
 
 # Data Preparation
@@ -62,6 +63,7 @@ We begin by setting up our session with the necessary libraries and data provide
 
 # Load libraries for EDA
 library('tidyverse')  # Data wrangling & visualization
+library('data.table')
 library('gt')         # Create professional tables
 library('janitor')    # Clean column names & messy data
 library('psych')      # Descriptive stats & psych research tools
@@ -98,26 +100,17 @@ library("tidymodels") # Used for its modeling framework
 library("tidyclust")  # Used for clustering approaches
 library("kernlab")    # Weighted kernal k-means)
 library('tibble')
+library('Metrics')
 ```
 
-```{r eval = FALSE}
+```{r}
 # Read files into session
 transactions <- as.data.frame(data.table::fread("data/transactional_data.csv"))
 customer_address <- read.csv("data/customer_address_and_zip_mapping.csv")
 customer_profile <- read.csv("data/customer_profile.csv")
 delivery_cost <- readxl::read_xlsx('data/delivery_cost_data.xlsx')
-customer_neighbors_clean <- as.data.frame(data.table::fread("data/customer_neighbor_fields.csv")) |>
-  mutate(customer_number = as.character(customer_number))
-
-# Ensure a writable directory
-dir.create("plots", showWarnings = FALSE)
-knitr::opts_chunk$set(fig.path = "plots/", dev = "png")
-
-# If on a headless system
-knitr::opts_chunk$set(dev = "CairoPNG")
-
-# Close any open graphics devices
-graphics.off()
+customer_neighbor_fields <- as.data.table(data.table::fread("data/customer_neighbor_fields.csv"))
+customer_neighbor_fields[, customer_number := as.character(customer_number)]
 ```
 
 ```{r include = FALSE}
@@ -404,7 +397,7 @@ The Local Market Partner (LMP) Random Forest model (200 trees) achieved even str
 While the models perform well, several enhancements could further improve their predictive accuracy and robustness. Advanced hyperparameter tuning, such as grid search or Bayesian optimization, could refine the Random Forest parameters beyond the current mtry = 6 selection. Additionally, exploring alternative machine learning models, such as XGBoost or LightGBM, may enhance performance by capturing more complex relationships in the data. Adjusting the classification threshold could help balance precision and recall, reducing false negatives while maintaining accuracy. Further, incorporating additional features, such as seasonality trends, customer engagement metrics, or external market data, could strengthen the model’s predictive power. Finally, deploying the model in a real-world environment with ongoing monitoring and periodic retraining would ensure adaptability to evolving customer behaviors and market conditions.
 
 
-### Aggregate Customer Order Data by Year
+### Step: Aggregate Customer Order Data by Year
 
 ```{r Aggregating Customer Order Data by Year}
 
@@ -506,11 +499,10 @@ Merge customer_neighbor_fields to customer_full_summary
 
 # Convert data frames to data.tables for efficient merging
 customer_full_summary <- as.data.table(customer_full_summary)
-customer_neighbor_fields <- as.data.table(customer_neighbors_clean)
 
 # Convert customer_number to character to ensure proper merging
 customer_full_summary[, customer_number := as.character(customer_number)]
-customer_neighbor_fields[, customer_number := as.character(customer_number)]
+# customer_neighbor_fields[, customer_number := as.character(customer_number)]
 
 # Merge customer_neighbor_fields into customer_full_summary
 customer_full_summary <- merge(customer_full_summary, 
@@ -1035,7 +1027,7 @@ customer_neighbors <- dist_df |>
     ) |>
     ungroup()
 
-customer_neighbors_clean <- 
+customer_neighbor_fields <- 
     customer_neighbors |>
     mutate(neighbor_avg_dist_km = ifelse(
         is.infinite(neighbor_avg_dist_km), 
@@ -1057,7 +1049,7 @@ We now gave great summary values for the neighbors of each customer. Let's now g
 ```{r}
 swire_cust_enriched <- 
     swire_cust_clean |>
-    inner_join(customer_neighbors_clean) |>
+    inner_join(customer_neighbor_fields) |>
     mutate(
         across(c(on_boarding_date, first_delivery_date), as.Date), 
         across(c(customer_number, primary_group_number), as.character), 
@@ -1212,7 +1204,7 @@ show_cluster_results(
 )
 ```
 
-![](data/cluster_results_comparison.png)
+![](img/cluster_results_comparison.png)
 
 This graph gives us a sense for the "elbow point", the crux where we get diminishing returns in WSS from splitting into more and more clusters.
 
@@ -1435,11 +1427,11 @@ Since XGBoost requires numerical values, all categorical variables were turned i
 
 ```{r}
 data <- as.data.table(swire_data_full)
-neighbors <- data.table::fread("/data/customer_neighbor_fields.csv")
+neighbors <- customer_neighbor_fields
                            
 # convert character variables to factor
 cols <- names(data)[sapply(data, is.character)]
-data[cols] <- lapply(data[cols], as.factor)
+data[, (cols) := lapply(.SD, as.factor), .SDcols = cols]
 
 # remove primary group number
 data <- subset(data, select = -primary_group_number)
@@ -1572,6 +1564,8 @@ dtest  <- xgb.DMatrix(data = x_test, label = y_test, missing = NA)
 ##### Model Training - Older Customers
 
 ```{r}
+#| class: scrolling-y
+
 params_reg <- list(
   objective = "reg:squarederror",
   eta = 0.1,
@@ -1637,6 +1631,8 @@ dtest_new  <- xgb.DMatrix(data = test_new, label = y_test_new, missing = NA)
 ##### Model Training - New Customers
 
 ```{r}
+#| class: scrolling-y
+
 params_new <- list(
   objective = "reg:squarederror",
   eta = 0.1,
@@ -1692,11 +1688,18 @@ print(paste("MAE:", mae_score_new))
 ##### Key variables 
 
 ```{r}
+#| class: scrolling-y
+
 # older customers
 importance <- xgb.importance(feature_names = colnames(x_train), model = model)
 xgb.plot.importance(importance)
 setorder(importance, -Importance)
 importance
+
+```
+
+```{r}
+#| class: scrolling-y
 
 # new customers
 importance_new <- xgb.importance(feature_names = colnames(x_train_new), model = model_new)
