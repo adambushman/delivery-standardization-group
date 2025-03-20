@@ -1295,41 +1295,6 @@ This is the next, crucial step. In its current form, the clusters are meaningles
 
 ## Approach 3: Zac
 
-```{r, results = "hide", warning=FALSE, message=FALSE}
-# Data Cleaning
-transactional_df <- transactional_data %>%
-  clean_names() %>%
-  mutate(transaction_date = ymd(transaction_date),
-         customer_number = as.character(customer_number)) %>%
-  group_by(customer_number) %>%
-  summarise(
-    total_ordered_cases = sum(ordered_cases, na.rm = TRUE),
-    total_delivered_cases = sum(delivered_cases, na.rm = TRUE),
-    net_delivered_cases = sum(ifelse(delivered_cases < 0, 0, delivered_cases), na.rm = TRUE),
-    fulfillment_rate = ifelse(total_ordered_cases == 0, NA, net_delivered_cases / total_ordered_cases),
-    total_returned_cases = sum(abs(delivered_cases[delivered_cases < 0]), na.rm = TRUE),
-    total_ordered_gallons = sum(ordered_gallons, na.rm = TRUE),
-    total_delivered_gallons = sum(delivered_gallons, na.rm = TRUE),
-    net_delivered_gallons = sum(ifelse(delivered_gallons < 0, 0, delivered_gallons), na.rm = TRUE),
-    fulfillment_rate_gallons = ifelse(total_ordered_gallons == 0, NA, net_delivered_gallons / total_ordered_gallons),
-    total_returned_gallons = sum(abs(delivered_gallons[delivered_gallons < 0]), na.rm = TRUE)
-  ) %>%
-  filter(!is.na(fulfillment_rate) & !is.na(fulfillment_rate_gallons))
-```
-1. Most customers align with our idea of a "White Truck"; this is possible but would frankly be a very powerful, albeit strong, statement. 
-
-2. Most customers fall into a middle ground that isn't well understood; this would be pretty disappointing as it wouldn't empower Swire to view their business any differently
-
-
-### Future Improvements
-
-A big part of clustering is learning about what is driving the assignment. In so doing, we'll gain insight about the fields that best describe the cluster. Those insights will help us name the clusters, bringing them to life in a powerful way for viewing the business.
-
-This is the next, crucial step. In its current form, the clusters are meaningless. Despite lacking time to do this piece for this milestone, it's a top priority in the early stages of preparing a presentation.
-
-
-## REAL ZAC
-
 ### Data Prep
 
 ```{r}
