@@ -30,13 +30,13 @@ Swire’s current segmenting strategy has led to misallocation of resources, inf
 
 Our approach enhances Swire Coca-Cola’s customer segmentation by analyzing transactional and profile data to identify key patterns. We apply clustering techniques to group similar customers and predictive modeling to forecast ordering behavior. These insights help optimize resource allocation, reduce costs, and identify high-growth opportunities.
 
-In approach #1, Tyler will...
+In Approach #1, Tyler applies PAM clustering with Gower’s Distance to segment customers based on purchasing behavior, handling mixed data types and assigning missing clusters using KNN, Centroid Matching, and Random Assignment. A Random Forest model is then trained to predict high-value orders, leveraging customer attributes, clustering results, and neighbor-based features, with SMOTE balancing and hyperparameter tuning optimizing performance.
 
 In approach #2, Adam will explore an different approach to clustering, one that leverages Principal Component Analysis and two different algorithms: kmeans and hierarchical. The goal is to identify unique customer groupings that could identify those that are 1) definitely red truck, 2) definitely white truck, and 3) it depends.
 
-In approach #3, Zac will...
+In Approach #3 Zac  applied a clustering approach to transactional data, focusing on the relationship between gallons and cases ordered versus what was actually delivered. He created a new column that captures fulfillment and returns, providing a clearer view of how orders are being met.
 
-In approach #4, Georgia will...
+In approach #4, Georgia will explore a fulfillment clustering model based on customer behavior. Additionally, she will experiment with forecasting approaches based on the two years worth of ordering volumes we have.
 
 
 # Data Preparation
@@ -506,7 +506,7 @@ Merge customer_neighbor_fields to customer_full_summary
 
 # Convert data frames to data.tables for efficient merging
 customer_full_summary <- as.data.table(customer_full_summary)
-customer_neighbor_fields <- as.data.table(customer_neighbor_fields)
+customer_neighbor_fields <- as.data.table(customer_neighbors_clean)
 
 # Convert customer_number to character to ensure proper merging
 customer_full_summary[, customer_number := as.character(customer_number)]
@@ -519,7 +519,7 @@ customer_full_summary <- merge(customer_full_summary,
                                all.x = TRUE)
 
 # Check structure after merging
-#str(customer_full_summary)
+# str(customer_full_summary)
 ```
 
 ### Modeling
@@ -646,18 +646,23 @@ table(is.na(CLARA$cluster))  # Should return only FALSE
 # str(CLARA)
 # head(CLARA)
  
+# Convert gower_dist to a 'dist' object if necessary
+# if (!inherits(gower_dist, "dist")) {
+# gower_dist <- as.dist(gower_dist)
+# }
  
  # Calculate silhouette scores using Gower's distance and cluster assignments
-silhouette_score <- silhouette(PAM_result$clustering, gower_dist)
+# silhouette_score <- silhouette(PAM_result$clustering, gower_dist)
 
 # Print average silhouette width (higher is better)
-cat("Average silhouette width:", mean(silhouette_score[, 3]), "\n")
+# cat("Average silhouette width:", mean(silhouette_score[, 3]), "\n")
 
 # Visualize the silhouette plot
-plot(silhouette_score, main = "Silhouette Plot for PAM Clustering")
+# plot(silhouette_score, main = "Silhouette Plot for PAM Clustering")
 
 # K = 9
 # Average silhouette width: 0.439543
+
 ```
 
 
@@ -729,7 +734,7 @@ train_data_balanced <- ovun.sample(order_over_500 ~ ., data = train_data, method
 set.seed(42)
 best_mtry <- tuneRF(train_data_balanced[, -which(names(train_data_balanced) == "order_over_500")], 
                     train_data_balanced$order_over_500, 
-                    stepFactor = 1.5, improve = 0.01, trace = TRUE)
+                    stepFactor = 1.5, improve = 0.01, trace = TRUE, plot = FALSE)
 
 # Select best mtry value
 optimal_mtry <- best_mtry[which.min(best_mtry[, 2]), 1]
@@ -811,7 +816,7 @@ train_data_balanced <- ovun.sample(order_over_500 ~ ., data = train_data, method
 set.seed(42)
 best_mtry <- tuneRF(train_data_balanced[, -which(names(train_data_balanced) == "order_over_500")], 
                     train_data_balanced$order_over_500, 
-                    stepFactor = 1.5, improve = 0.01, trace = TRUE)
+                    stepFactor = 1.5, improve = 0.01, trace = TRUE, plot = FALSE)
 
 # Select best mtry value
 optimal_mtry <- best_mtry[which.min(best_mtry[, 2]), 1]
@@ -1311,12 +1316,9 @@ transactional_df <- transactional_data %>%
   ) %>%
   filter(!is.na(fulfillment_rate) & !is.na(fulfillment_rate_gallons))
 ```
+1. Most customers align with our idea of a "White Truck"; this is possible but would frankly be a very powerful, albeit strong, statement. 
 
-1. 
-
-2. Most customers align with our idea of a "White Truck"; this is possible but would frankly be a very powerful, albeit strong, statement. 
-
-3. Most customers fall into a middle ground that isn't well understood; this would be pretty disappointing as it wouldn't empower Swire to view their business any differently
+2. Most customers fall into a middle ground that isn't well understood; this would be pretty disappointing as it wouldn't empower Swire to view their business any differently
 
 
 ### Future Improvements
