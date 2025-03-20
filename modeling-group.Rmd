@@ -36,7 +36,7 @@ In approach #2, Adam will explore an different approach to clustering, one that 
 
 In Approach #3 Zac  applied a clustering approach to transactional data, focusing on the relationship between gallons and cases ordered versus what was actually delivered. He created a new column that captures fulfillment and returns, providing a clearer view of how orders are being met.
 
-In approach #4, Georgia will explore a fulfillment clustering model based on customer behavior. Additionally, she will experiment with forecasting approaches based on the two years worth of ordering volumes we have.
+In approach #4, Georgia chose a forecasting approach to predict customer-level future orders with the goal of identifying trends in customer behavior and potential growth patterns. Due to the limited data and time constraints, I developed a base-level forecast model that incorporates features like lag values, rolling averages, and growth rates to capture recent order patterns and momentum. While this model offers some insights, there’s opportunity for further improvement by adding advanced features, improving segmentation, and exploring additional data sources. 
 
 
 # Data Preparation
@@ -58,9 +58,8 @@ To further optimize the dataset, all data is converted into an efficient data.ta
 
 We begin by setting up our session with the necessary libraries and data provided by Swire. These will be referenced often throughout this document.
 
-```{r warning = FALSE, message = FALSE}
+```{r setup, include=FALSE, warning = FALSE, message = FALSE}
 
-# Load libraries for EDA
 library('tidyverse')  # Data wrangling & visualization
 library('gt')         # Create professional tables
 library('janitor')    # Clean column names & messy data
@@ -98,9 +97,11 @@ library("tidymodels") # Used for its modeling framework
 library("tidyclust")  # Used for clustering approaches
 library("kernlab")    # Weighted kernal k-means)
 library('tibble')
+library('metrics')
+
 ```
 
-```{r eval = FALSE}
+```{r eval = TRUE}
 # Read files into session
 transactions <- as.data.frame(data.table::fread("data/transactional_data.csv"))
 customer_address <- read.csv("data/customer_address_and_zip_mapping.csv")
@@ -112,10 +113,8 @@ customer_neighbors_clean <- as.data.frame(data.table::fread("data/customer_neigh
 # Ensure a writable directory
 dir.create("plots", showWarnings = FALSE)
 knitr::opts_chunk$set(fig.path = "plots/", dev = "png")
-
 # If on a headless system
 knitr::opts_chunk$set(dev = "CairoPNG")
-
 # Close any open graphics devices
 graphics.off()
 ```
@@ -360,7 +359,7 @@ swire_data_full <-
 swire_data_full <- readRDS('data/swire_data_full.Rds')
 ```
 
-```{r}
+```{r swire_data_full}
 glimpse(swire_data_full)
 ```
 
@@ -406,7 +405,7 @@ While the models perform well, several enhancements could further improve their 
 
 ### Aggregate Customer Order Data by Year
 
-```{r Aggregating Customer Order Data by Year}
+```{r Aggregating Customer Order Data}
 
 # Aggregate data by customer_number and year
 customer_order_summary_by_year <- swire_data_full %>%
@@ -504,11 +503,11 @@ Merge customer_neighbor_fields to customer_full_summary
 
 ```{r ADD customer_neighbor_fields to customer_full_summary}
 
-# Convert data frames to data.tables for efficient merging
+# Convert data frames to data.tables
 customer_full_summary <- as.data.table(customer_full_summary)
-customer_neighbor_fields <- as.data.table(customer_neighbors_clean)
+customer_neighbor_fields <- as.data.table(customer_neighbors_clean)  # Convert correctly
 
-# Convert customer_number to character to ensure proper merging
+# Ensure customer_number is character before merging
 customer_full_summary[, customer_number := as.character(customer_number)]
 customer_neighbor_fields[, customer_number := as.character(customer_number)]
 
@@ -632,13 +631,13 @@ cluster_plot_data <- as.data.frame(mds_data)
 cluster_plot_data$cluster <- PAM_result$clustering  # Assign cluster labels
 
 # Visualize the Clusters
-ggplot(cluster_plot_data, aes(V1, V2, color = as.factor(cluster))) +
-  geom_point(alpha = 0.7, size = 3) +
-  labs(title = "PAM Clustering with Gower’s Distance",
-       x = "MDS Dimension 1",
-       y = "MDS Dimension 2",
-       color = "Cluster") +
-  theme_minimal()
+# ggplot(cluster_plot_data, aes(V1, V2, color = as.factor(cluster))) +
+#  geom_point(alpha = 0.7, size = 3) +
+#  labs(title = "PAM Clustering with Gower’s Distance",
+#       x = "MDS Dimension 1",
+#       y = "MDS Dimension 2",
+#       color = "Cluster") +
+#  theme_minimal()
 
 # Verify that Every Customer has a Cluster
 table(is.na(CLARA$cluster))  # Should return only FALSE
@@ -1295,27 +1294,6 @@ This is the next, crucial step. In its current form, the clusters are meaningles
 
 ## Approach 3: Zac
 
-```{r, results = "hide", warning=FALSE, message=FALSE}
-# Data Cleaning
-transactional_df <- transactional_data %>%
-  clean_names() %>%
-  mutate(transaction_date = ymd(transaction_date),
-         customer_number = as.character(customer_number)) %>%
-  group_by(customer_number) %>%
-  summarise(
-    total_ordered_cases = sum(ordered_cases, na.rm = TRUE),
-    total_delivered_cases = sum(delivered_cases, na.rm = TRUE),
-    net_delivered_cases = sum(ifelse(delivered_cases < 0, 0, delivered_cases), na.rm = TRUE),
-    fulfillment_rate = ifelse(total_ordered_cases == 0, NA, net_delivered_cases / total_ordered_cases),
-    total_returned_cases = sum(abs(delivered_cases[delivered_cases < 0]), na.rm = TRUE),
-    total_ordered_gallons = sum(ordered_gallons, na.rm = TRUE),
-    total_delivered_gallons = sum(delivered_gallons, na.rm = TRUE),
-    net_delivered_gallons = sum(ifelse(delivered_gallons < 0, 0, delivered_gallons), na.rm = TRUE),
-    fulfillment_rate_gallons = ifelse(total_ordered_gallons == 0, NA, net_delivered_gallons / total_ordered_gallons),
-    total_returned_gallons = sum(abs(delivered_gallons[delivered_gallons < 0]), na.rm = TRUE)
-  ) %>%
-  filter(!is.na(fulfillment_rate) & !is.na(fulfillment_rate_gallons))
-```
 1. Most customers align with our idea of a "White Truck"; this is possible but would frankly be a very powerful, albeit strong, statement. 
 
 2. Most customers fall into a middle ground that isn't well understood; this would be pretty disappointing as it wouldn't empower Swire to view their business any differently
@@ -1460,6 +1438,17 @@ By leveraging this clustered fullfillment information, Swire’s sales team can 
 ### Future Improvements
 
 While the clustered fulfillment model offers insights into high-performing and high-potential customers, identifying individual customers would provide additional value for salespeople and other points of contact who have direct relationships with them. Their personal experience could help interpret the data more effectively. Additionally, incorporating features that classify customers by business type could enhance clustering, offering more precise insights into fulfillment rates across different industries.
+
+
+
+
+
+
+
+
+
+
+
 
 
 ## Approach 4: Georgia
@@ -1741,16 +1730,6 @@ importance_new
 
 ```
 
-In the fulfillment clustering model, cluster 3 contained the majority of our data and was identified as representing typical small to medium-sized business buyers. These businesses, depending on their industry and operations, often have greater potential for growth or change compared to corporate buyers.
-
-To analyze their fulfillment patterns, I split this cluster into two separate datasets:
-
-- Gallons Dataset – Includes customer fulfillment rate in gallons along with their returns.
-- Cases Dataset – Includes customer fulfillment rate in cases along with their returns.
-
-By leveraging this clustered fullfillment information, Swire’s sales team can identify customers who are selling more than they order and prioritize those with the highest potential for growth. This allows them to focus time and resources on businesses that would benefit from additional support, ultimately strengthening customer relationships and increasing sales opportunities. 
-
-
 ### Insights
 
 Since older and new customers behave differently, separate models were built for each group. Since categorical data (like trade channels) was important, those features were converted into dummy variables so the model could use them effectively. Both models used XGBoost with the same hyperparameters. The hyperparameters were adjusted numerous times to improve performance, but due to time constraints, the following hyperparameters were chosen for the best performance:
@@ -1762,6 +1741,7 @@ colsample_bytree = 0.7 to randomly sample features and reduce overfitting
 
 For older customers, the model achieved an RMSE of 22.24 and an MAE of 4.78, demonstrating good predictive accuracy with relatively low error values. This result suggests that the model effectively captured established customer behavior. For new customers, the model's performance was less optimal, with an RMSE of 38.59 and an MAE of 6.54. This higher error is expected given the limited transaction history available for these customers. The difference in performance highlights the difficulty in forecasting for new customers, where limited historical data introduces more volatility and noise.
 
+### Future Improvements
 While the current forecast models perform okay, several enhancements could further improve forecasting accuracy. Additionally, while this model is focused on forecasting future orders, more needs to be done to be able to identify "high-growth" customers. 
 
 Some general future model enhancements could include:
@@ -1781,8 +1761,6 @@ Some future steps could include:
 By leveraging data-driven modeling techniques, we enhance Swire Coca-Cola’s ability to segment customers and predict ordering behavior. These insights enable more efficient resource allocation, reduce costs, and identify growth opportunities. Moving forward, continuous refinement of models and integration of additional data sources will further optimize decision-making and operational strategies.
 
 ## Division of Work
-
-Each group member created individual models and worked together to combine said models into one cohesive modeling project.
 
 This group modeling assignment was made possible through the collaborative efforts of all team members. Together, we gathered and cleaned transactional, customer, and delivery cost data, ensuring accuracy and consistency. We engineered key features to strengthen clustering and predictive modeling, utilizing various techniques to enhance customer segmentation and forecasting. Through our combined efforts, we refined data-driven strategies to optimize Swire Coca-Cola’s distribution model.
 
