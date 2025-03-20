@@ -25,8 +25,8 @@ Regional beverage bottler Swire Coca-Cola (SCCU) relies on two business models: 
 
 Swire’s current segmenting strategy has led to misallocation of resources, inflated expenses, and missed opportunities from clients with high-growth potential. Swire aims to better algin their customers with the business proposition of these models by identifying customer characteristics and  rdering behavior that better determines the right business model for the long-term relationship.
 
-# Modeling  Introduction
 
+# Modeling  Introduction
 
 Our approach enhances Swire Coca-Cola’s customer segmentation by analyzing transactional and profile data to identify key patterns. We apply clustering techniques to group similar customers and predictive modeling to forecast ordering behavior. These insights help optimize resource allocation, reduce costs, and identify high-growth opportunities.
 
@@ -52,7 +52,6 @@ To incorporate local market dynamics, customer_full_summary is merged with custo
 Additionally, a Local Market Partner (LMP) subset is created by filtering customers who purchase only fountain drinks while excluding CO2, cans, and bottles (local_market_partner = 1 and co2_customer = 0). This segmentation allows for a more targeted analysis of smaller, high-frequency purchasers.
 
 To further optimize the dataset, all data is converted into an efficient data.table format for faster querying and merging. A stratified sample of 2,000 customer-year pairs ensures balanced representation across different customer segments. These enhancements ensure that both PAM clustering and Random Forest classification operate on clean, structured, and feature-rich data, improving customer segmentation and high-value order prediction across all customer groups, including Local Market Partners.
-
 
 
 ## Libraries & Data
@@ -358,7 +357,6 @@ swire_data_full <-
 ### Final Data Set
 
 ```{r include = FALSE}
-
 swire_data_full <- readRDS('data/swire_data_full.Rds')
 ```
 
@@ -369,12 +367,9 @@ glimpse(swire_data_full)
 Now, we have a single, standardized data set that is enriched, properly formatted, and well-suited to the remaining analysis.
 
 
+# Modeling Approaches
 
-
-
-
-
-## Model 1: 
+## Approach 1: Tyler
 
 ### Data Preparation
 
@@ -405,9 +400,12 @@ The Random Forest model for all customers demonstrated strong predictive perform
 The Local Market Partner (LMP) Random Forest model (200 trees) achieved even stronger predictive performance, with 90.19% accuracy, 94.83% sensitivity, and 72.4% specificity, demonstrating its ability to correctly classify high-value LMP customers. Similar to the all customer data set model, key predictors in the LMP model included customer segmentation (PAM clustering), tenure, trade channel, and neighbor-based attributes.
 
 ### Future Improvements
+
 While the models perform well, several enhancements could further improve their predictive accuracy and robustness. Advanced hyperparameter tuning, such as grid search or Bayesian optimization, could refine the Random Forest parameters beyond the current mtry = 6 selection. Additionally, exploring alternative machine learning models, such as XGBoost or LightGBM, may enhance performance by capturing more complex relationships in the data. Adjusting the classification threshold could help balance precision and recall, reducing false negatives while maintaining accuracy. Further, incorporating additional features, such as seasonality trends, customer engagement metrics, or external market data, could strengthen the model’s predictive power. Finally, deploying the model in a real-world environment with ongoing monitoring and periodic retraining would ensure adaptability to evolving customer behaviors and market conditions.
 
-#### Aggregate Customer Order Data by Year
+
+### Aggregate Customer Order Data by Year
+
 ```{r Aggregating Customer Order Data by Year}
 
 # Aggregate data by customer_number and year
@@ -690,6 +688,7 @@ $ order_over_500         : num  0 0 1 0 0 0 0 0 1 1 ...
  $ combined_ordered_total : num  370 383.5 591.5 482 17.5 ...
  $ customer_number        : chr  "500245678" "500245678" "500245685" "500245685" ...
 
+
 #### ALL Customers: SMOTE-enhanced Random Forest model with hyperparamter tuning Over 500
 
 ```{r smote_rf_tuning, echo=FALSE}
@@ -760,6 +759,7 @@ print(conf_matrix)
 importance(rf_model)
 varImpPlot(rf_model)
 ```
+
 
 #### Local Market Partners: SMOTE-enhanced Random Forest model with hyperparamter tuning Over 500
 
@@ -844,21 +844,9 @@ varImpPlot(rf_model)
 
 
 
-
-
-
-
-
-
-
-
-## Modeling Approaches
-
-
-### Approach 2
+## Approach 2: Adam
 
 This approach is another take on clustering. The idea is to enrich the data with additional features, most notably leveraging the spatial data we have to understand "neighboring" customers of swire. Here's a simple graphic to illustrate the idea:
-
 
 ![](img/nearest-customers-diagram.png)
 
@@ -867,6 +855,8 @@ For each customer, it may be helpful to know how isolated or densely populated t
 Knowing which 5 customers are closest to each, we can determine order volume, return rates, etc., for these neighbors. **These fields could be helpful in determining the value of an area**; if an area is valuable, even if the customer isn't *yet*, there may be a statistical argument for their potential for red truck.
 
 Let's derive these distances.
+
+### Data Prep
 
 #### Customer Level of Detail
 
@@ -981,7 +971,6 @@ get_top5 <- function(row) {
     list(indices = idx, values = values)
 }
 ```
-
 
 ```{r eval = FALSE}
 dist_df <- data.frame(matrix(NA, nrow = 0, ncol = 4)) |>
@@ -1297,7 +1286,14 @@ We've learned a few things through this exercise:
   1. Most customers align with our idea of "Red Truck"; this is highly unlikely. Our EDA showed the 75%tile of customers annual order volume was around the 400 threshold.
 
 
-### Approach 3
+### Future Improvements
+
+A big part of clustering is learning about what is driving the assignment. In so doing, we'll gain insight about the fields that best describe the cluster. Those insights will help us name the clusters, bringing them to life in a powerful way for viewing the business.
+
+This is the next, crucial step. In its current form, the clusters are meaningless. Despite lacking time to do this piece for this milestone, it's a top priority in the early stages of preparing a presentation.
+
+
+## Approach 3: Zac
 
 ```{r, results = "hide", warning=FALSE, message=FALSE}
 # Data Cleaning
@@ -1320,10 +1316,9 @@ transactional_df <- transactional_data %>%
   ) %>%
   filter(!is.na(fulfillment_rate) & !is.na(fulfillment_rate_gallons))
 ```
+1. Most customers align with our idea of a "White Truck"; this is possible but would frankly be a very powerful, albeit strong, statement. 
 
-  2. Most customers align with our idea of a "White Truck"; this is possible but would frankly be a very powerful, albeit strong, statement. 
-
-  3. Most customers fall into a middle ground that isn't well understood; this would be pretty disappointing as it wouldn't empower Swire to view their business any differently
+2. Most customers fall into a middle ground that isn't well understood; this would be pretty disappointing as it wouldn't empower Swire to view their business any differently
 
 
 ### Future Improvements
@@ -1333,9 +1328,9 @@ A big part of clustering is learning about what is driving the assignment. In so
 This is the next, crucial step. In its current form, the clusters are meaningless. Despite lacking time to do this piece for this milestone, it's a top priority in the early stages of preparing a presentation.
 
 
+## REAL ZAC
 
-## Approach 3
-
+### Data Prep
 
 ```{r}
 # Data Cleaning
@@ -1374,7 +1369,8 @@ kmeans_model <- kmeans(clustering_data, centers = 4, nstart = 10)
 transactional_df$cluster <- kmeans_model$cluster
 ```
 
-##### Fulfillment Clustering
+### Fulfillment Clustering
+
 Data was transformed in the clustering process to determine fulfillment rate for gallons and cases (gallons and cases ordered vs what was delivered). This transactional data was then fitting into a clustering model. For time saving in knitting and processing, optimal clustering process was left off from here but determined to be in the 4 to 5 range. 
 
 After clustering the first time, cluster 4 was removed as that data seemed erroneous and simply a data issue. Then I ran clustering for 5.
@@ -1425,8 +1421,10 @@ print(kable(cluster_summary, caption = "Cluster Summary Table"))
 ```
 
 
-#### Clustered Fulfillment Rate Summary
-### Extract Gallons and Cases Customers from Cluster Three for Summary
+### Clustered Fulfillment Rate Summary
+
+#### Extract Gallons and Cases Customers from Cluster Three for Summary
+
 ```{r}
 # Extract Gallons and Cases Customers from Cluster Three
 
@@ -1447,334 +1445,7 @@ print(head(cluster_3_gallons))
 
 ```
 
-
-### Approach 4
-##### Forecasting Data Preparation
-
-Since XGBoost requires numerical values, all categorical variables were turned into factors so they could be encoded later. Columns I thought were unnecessary were removed to simplify the dataset. To help the model recognize patterns, several new features were added. Date-based features like week, month, and quarter were created to help capture seasonal trends. Lag features (lag_1, lag_4, lag_6) were added to give the model information about recent orders, helping it detect short-term changes. Rolling averages (rolling_avg_3 and rolling_avg_6) were included to smooth out order patterns and reduce noise, and a growth_rate feature was added to measure customer momentum by comparing recent orders to past orders. To better predict behavior for different customer types, a new_customer flag was created to separate new customers from established ones to help the model handle each group’s unique behaviors.
-
-```{r}
-data <- as.data.table(swire_data_full)
-neighbors <- data.table::fread("/data/customer_neighbor_fields.csv")
-                           
-# convert character variables to factor
-cols <- names(data)[sapply(data, is.character)]
-data[cols] <- lapply(data[cols], as.factor)
-
-# remove primary group number
-data <- subset(data, select = -primary_group_number)
-
-# add a "week" and "month" column
-data$transaction_week <- floor_date(data$transaction_date, unit = "week")
-data$transaction_month <- floor_date(data$transaction_date, unit = "month")
-
-# convert to data table
-setDT(data)
-
-# join neighbors data
-data <- data[neighbors, on = "customer_number"]
-
-# aggregate to weekly transactions by customer for all customers
-df_grouped_week <- data[, .(
-  weekly_ordered_total   = sum(ordered_total, na.rm=TRUE),
-  weekly_delivered_total = sum(delivered_total, na.rm=TRUE)#,
-  #weekly_return_freq     = sum(return_frequency, na.rm=TRUE)
-), by = .(transaction_week, customer_number)]
-
-# subset data
-features <- data[, .(customer_number, on_boarding_date, first_delivery_date, cold_drink_channel, frequent_order_type, trade_channel, sub_trade_channel, neighbor_avg_dist_km, neighbor_primary_group_count, neighbor_avg_return_freq, neighbor_local_market_partners, neighbor_avg_order_transactions_2023, neighbor_avg_order_transactions_2024, neighbor_avg_order_transaction_std_2023, neighbor_avg_order_transaction_std_2024, neighbor_avg_ordered_total_2023, neighbor_avg_ordered_total_2024)]
-
-# get unique features
-features <- unique(features)
-
-# create a full set of weeks for each customer - all customers
-date_seq_all <- df_grouped_week[, .(transaction_week = seq(min(transaction_week),
-                                                   max(transaction_week), 
-                                                   by = "week")), 
-                        by = customer_number]
-
-# merge back with original data
-df_grouped_week <- merge(date_seq_all, df_grouped_week, 
-                     by = c("customer_number", "transaction_week"), 
-                     all.x = TRUE)
-
-# fill missing weeks with zero orders
-df_grouped_week[is.na(weekly_ordered_total), weekly_ordered_total := 0]
-df_grouped_week[is.na(weekly_delivered_total), weekly_delivered_total := 0]
-#df_grouped_week[is.na(weekly_return_freq), weekly_return_freq := 0]
-
-# join the rest of the variables for all customers 
-df_grouped_week <- merge(df_grouped_week, features, by = "customer_number", all = TRUE)
-```
-
-##### Feature Engineering
-```{r}
-# newer vs. existing customers using first delivery date
-# new vs. existing cutoff
-cutoff_date <- as.IDate("2023-07-01")
-
-# create a logical flag
-df_grouped_week[, new_customer := (first_delivery_date >= cutoff_date)]
-
-# add date-based features
-df_grouped_week[, month := month(transaction_week)]
-df_grouped_week[, quarter := quarter(transaction_week)]
-
-# sort to chronological order
-setorder(df_grouped_week, customer_number, transaction_week)
-
-# add Lag Features
-df_grouped_week[, lag_1 := shift(weekly_ordered_total, 1), by = customer_number]
-df_grouped_week[, lag_4 := shift(weekly_ordered_total, 4), by = customer_number]
-df_grouped_week[, lag_6 := shift(weekly_ordered_total, 6), by = customer_number]
-
-# add Rolling Averages
-df_grouped_week[, rolling_avg_3 := frollmean(weekly_ordered_total, 3), by = customer_number]
-df_grouped_week[, rolling_avg_6 := frollmean(weekly_ordered_total, 6), by = customer_number]
-
-# time since onboarding
-df_grouped_week[, time_since_onboarding_weeks := 
-  as.numeric(difftime(transaction_week, on_boarding_date, units = "weeks"))]
-df_grouped_week[time_since_onboarding_weeks < 0, time_since_onboarding_weeks := 0]
-
-# growth rate calculation
-df_grouped_week[, growth_rate := (weekly_ordered_total - shift(weekly_ordered_total, 4)) / 
-                                      shift(weekly_ordered_total, 4), by = customer_number]
-
-# replace infinite or NA values with zero
-df_grouped_week[is.infinite(growth_rate) | is.na(growth_rate), growth_rate := 0]
-```
-
-
-##### Create train and test data - Older Customers
-```{r}
-# split data based on time
-train <- df_grouped_week[new_customer == FALSE & transaction_week < "2024-7-1"]
-test  <- df_grouped_week[new_customer == FALSE & transaction_week >= "2024-7-1"]
-
-y_train <- train$weekly_ordered_total
-y_test <- test$weekly_ordered_total
-
-train[, week_of_year := week(transaction_week)]
-train[, month := month(transaction_week)]
-train[, quarter := quarter(transaction_week)]
-train[, year := year(transaction_week)]
-
-test[, week_of_year := week(transaction_week)]
-test[, month := month(transaction_week)]
-test[, quarter := quarter(transaction_week)]
-test[, year := year(transaction_week)]
-
-exclude_cols <- c("customer_number", "weekly_ordered_total", "first_delivery_date", "transaction_week", "on_boarding_date", "weekly_delivered_total")
-test_id_table <- test[, .(customer_number, transaction_week, weekly_ordered_total)]
-cat_features <- names(train)[sapply(train, is.factor) | sapply(train, is.character)]
-
-# dummy encode categorical variables and remove target and identifier vars
-x_train <- train[, setdiff(names(train), exclude_cols), with = FALSE]
-x_train <- dummy_cols(x_train, select_columns = cat_features, remove_selected_columns = TRUE)
-
-# dummy encode test data and remove target and identifier vars
-x_test <- test[, setdiff(names(train), exclude_cols), with = FALSE]
-x_test <- dummy_cols(x_test, select_columns = cat_features, remove_selected_columns = TRUE)
-
-# convert to matrix
-x_train <- as.matrix(x_train)
-x_test <- as.matrix(x_test)
-
-# Convert Data to DMatrix Format
-dtrain <- xgb.DMatrix(data = x_train, label = y_train, missing = NA)
-dtest  <- xgb.DMatrix(data = x_test, label = y_test, missing = NA)
-```
-
-##### Model Training - Older Customers
-```{r}
-params_reg <- list(
-  objective = "reg:squarederror",
-  eta = 0.1,
-  max_depth = 6,
-  min_child_weight = 5,
-  subsample = 0.8,
-  colsample_bytree = 0.7,
-  reg_alpha = 0.3,        # add L1 regularization
-  reg_lambda = 1,         # add L2 regularization
-  eval_metric = c("rmse", "mae")
-)
-
-model <- xgb.train(
-  params = params_reg,
-  data = dtrain,
-  nrounds = 500,
-  watchlist = list(train = dtrain, test = dtest),
-  early_stopping_rounds = 30
-)
-```
-
-##### Create train and test data - New Customers
-```{r}
-# split data based on time
-train_new <- df_grouped_week[new_customer == TRUE & transaction_week < "2024-7-1"]
-test_new  <- df_grouped_week[new_customer == TRUE & transaction_week >= "2024-7-1"]
-
-y_train_new <- train_new$weekly_ordered_total
-y_test_new <- test_new$weekly_ordered_total
-
-train_new[, week_of_year := week(transaction_week)]
-train_new[, month := month(transaction_week)]
-train_new[, quarter := quarter(transaction_week)]
-train_new[, year := year(transaction_week)]
-
-test_new[, week_of_year := week(transaction_week)]
-test_new[, month := month(transaction_week)]
-test_new[, quarter := quarter(transaction_week)]
-test_new[, year := year(transaction_week)]
-
-exclude_cols <- c("customer_number", "weekly_ordered_total", "first_delivery_date", "transaction_week", "on_boarding_date", "weekly_delivered_total")
-test_id_table_new <- test_new[, .(customer_number, transaction_week, weekly_ordered_total)]
-cat_features <- names(train_new)[sapply(train_new, is.factor) | sapply(train_new, is.character)]
-
-# dummy encode categorical variables and remove target and identifier vars
-x_train_new <- train_new[, setdiff(names(train_new), exclude_cols), with = FALSE]
-x_train_new <- dummy_cols(x_train_new, select_columns = cat_features, remove_selected_columns = TRUE)
-
-# dummy encode test data and remove target and identifier vars
-test_new <- test_new[, setdiff(names(train_new), exclude_cols), with = FALSE]
-test_new <- dummy_cols(test_new, select_columns = cat_features, remove_selected_columns = TRUE)
-
-# convert to matrix
-x_train_new <- as.matrix(x_train_new)
-test_new <- as.matrix(test_new)
-
-# convert Data to DMatrix Format
-dtrain_new <- xgb.DMatrix(data = x_train_new, label = y_train_new, missing = NA)
-dtest_new  <- xgb.DMatrix(data = test_new, label = y_test_new, missing = NA)
-```
-
-##### Model Training - New Customers
-```{r}
-params_new <- list(
-  objective = "reg:squarederror",
-  eta = 0.1,
-  max_depth = 6,
-  min_child_weight = 5,
-  subsample = 0.8,
-  colsample_bytree = 0.7,
-  reg_alpha = 0.3,        # add L1 regularization
-  reg_lambda = 1,         # add L2 regularization
-  eval_metric = c("rmse", "mae")
-)
-
-model_new <- xgb.train(
-  params = params_new,
-  data = dtrain_new,
-  nrounds = 500,
-  watchlist = list(train = dtrain_new, test = dtest_new),
-  early_stopping_rounds = 30
-)
-```
-
-##### Predictions and Performance - Older Customers
-```{r}
-# predict
-predictions <- predict(model, dtest)
-
-test_id_table[, predicted_total := predictions]
-
-# calculate rmse and mae scores
-rmse_score <- rmse(y_test, predictions)
-mae_score <- mae(y_test, predictions)
-print(paste("RMSE:", rmse_score))
-print(paste("MAE:", mae_score))
-```
-
-
-##### Predictions and Performance - New Customers
-```{r}
-# predict
-predictions_new <- predict(model_new, dtest_new)
-
-test_id_table_new[, predicted_total := predictions_new]
-
-# calculate rmse and mae scores
-rmse_score_new <- rmse(y_test_new, predictions_new)
-mae_score_new <- mae(y_test_new, predictions_new)
-print(paste("RMSE:", rmse_score_new))
-print(paste("MAE:", mae_score_new))
-```
-
-##### Key variables 
-```{r}
-# older customers
-importance <- xgb.importance(feature_names = colnames(x_train), model = model)
-xgb.plot.importance(importance)
-setorder(importance, -Importance)
-importance
-
-# new customers
-importance_new <- xgb.importance(feature_names = colnames(x_train_new), model = model_new)
-xgb.plot.importance(importance_new)
-setorder(importance_new, -Importance)
-importance_new
-
-```
-
-##### Fulfillment Clustering
-Data was transformed in the clustering process to determine fulfillment rate for gallons and cases (gallons and cases ordered vs what was delivered). This transactional data was then fitting into a clustering model. For time saving in knitting and processing, optimal clustering process was left off from here but determined to be in the 4 to 5 range. 
-
-After clustering the first time, cluster 4 was removed as that data seemed erroneous and simply a data issue. Then I ran clustering for 5.
-
-Results: 
-
-- Cluster 1 (39 customers) has an abnormally high fulfillment rate (43.07) → Possible data errors or unusual cases.
-- Cluster 3 (24,298 customers) is still  broad — this is where we may need further refinement.
-- Cluster 4 (128 customers) is a clear middle-tier of high-volume buyers.
-- Cluster 5 (8 customers) represents the absolute largest buyers—probably wholesalers or major corporate clients.
-
-```{r}
-# Results and Key Takeaways
-transactional_df <- transactional_df %>% filter(cluster != 4)
-clustering_data <- transactional_df %>% select(-customer_number) %>% scale()
-kmeans_model <- kmeans(clustering_data, centers = 5, nstart = 10)
-transactional_df$cluster <- kmeans_model$cluster
-
-# Summarize new clusters
-transactional_df %>%
-  group_by(cluster) %>%
-  summarise(
-    avg_ordered = mean(total_ordered_cases, na.rm = TRUE),
-    avg_delivered = mean(total_delivered_cases, na.rm = TRUE),
-    avg_fulfillment_rate = mean(fulfillment_rate, na.rm = TRUE),
-    count = n()
-  )
-
-# Visualize clusters
-fviz_cluster(kmeans_model, data = clustering_data)
-
-# Display results
-cluster_summary <- tibble(
-  Cluster = c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4", "Cluster 5"),
-  Avg_Ordered = c(1.92, 186452.9, 978.69, 56778.0, 472528.8),
-  Avg_Delivered = c(75.77, 177788.6, 908.96, 53204.9, 455473.8),
-  Avg_Fulfillment_Rate = c(43.07, 0.95, 0.96, 0.94, 0.96),
-  Count = c(39, 22, 24298, 128, 8),
-  Interpretation = c(
-    "Very small orders, possibly misclassified or extreme cases",
-    "Large volume buyers (high-end distributors)",
-    "Typical small/medium business buyers",
-    "Medium-volume corporate buyers",
-    "Elite large buyers (possibly wholesalers)"
-  )
-)
-print(kable(cluster_summary, caption = "Cluster Summary Table"))
-```
-
-
-#### Clustered Fulfillment Rate Summary
-### Extract Gallons and Cases Customers from Cluster Three for Summary
-```{r, results = "hide", warning=FALSE, message=FALSE}
-# Extract Gallons and Cases Customers from Cluster Three
-
-
-cluster_3_customers <- transactional_df %>% filter(cluster == 3)
+### Insights
 
 In the fulfillment clustering model, cluster 3 contained the majority of our data and was identified as representing typical small to medium-sized business buyers. These businesses, depending on their industry and operations, often have greater potential for growth or change compared to corporate buyers.
 
@@ -1786,50 +1457,13 @@ To analyze their fulfillment patterns, I split this cluster into two separate da
 By leveraging this clustered fullfillment information, Swire’s sales team can identify customers who are selling more than they order and prioritize those with the highest potential for growth. This allows them to focus time and resources on businesses that would benefit from additional support, ultimately strengthening customer relationships and increasing sales opportunities. 
 
 
-### Insight 4
+### Future Improvements
 
-Since older and new customers behave differently, separate models were built for each group. Since categorical data (like trade channels) was important, those features were converted into dummy variables so the model could use them effectively. Both models used XGBoost with the same hyperparameters. The hyperparameters were adjusted numerous times to improve performance, but due to time constraints, the following hyperparameters were chosen for the best performance:
-
-max_depth = 6 to control complexity
-min_child_weight = 5 to prevent overly small data splits
-subsample = 0.8 to improve generalization
-colsample_bytree = 0.7 to randomly sample features and reduce overfitting
-
-For older customers, the model achieved an RMSE of 22.24 and an MAE of 4.78, demonstrating good predictive accuracy with relatively low error values. This result suggests that the model effectively captured established customer behavior. For new customers, the model's performance was less optimal, with an RMSE of 38.59 and an MAE of 6.54. This higher error is expected given the limited transaction history available for these customers. The difference in performance highlights the difficulty in forecasting for new customers, where limited historical data introduces more volatility and noise.
-
-
-cluster_3_cases <- cluster_3_customers %>%
-  select(customer_number, total_ordered_cases, total_delivered_cases, fulfillment_rate, total_returned_cases) %>%
-  filter(!is.na(fulfillment_rate)) %>%
-  arrange(desc(fulfillment_rate))
-
-cluster_3_gallons <- cluster_3_customers %>%
-  select(customer_number, total_ordered_gallons, total_delivered_gallons, fulfillment_rate_gallons, total_returned_gallons) %>%
-  filter(!is.na(fulfillment_rate_gallons)) %>%
-  arrange(desc(fulfillment_rate_gallons))
-
-print(head(cluster_3_cases))
-print(head(cluster_3_gallons))
-
-```
-
-### Approach 3
 While the clustered fulfillment model offers insights into high-performing and high-potential customers, identifying individual customers would provide additional value for salespeople and other points of contact who have direct relationships with them. Their personal experience could help interpret the data more effectively. Additionally, incorporating features that classify customers by business type could enhance clustering, offering more precise insights into fulfillment rates across different industries.
 
 
-### Approach 4
-While the current forecast models perform okay, several enhancements could further improve forecasting accuracy. Additionally, while this model is focused on forecasting future orders, more needs to be done to be able to identify "high-growth" customers. 
+## Approach 4: Georgia
 
-Some general future model enhancements could include:
-- Exploring additional/separate hyperparameter tuning for each model (new and more established customers)
-- Exploring dynamic lag features for individual customer segments like trade channel, cold drink channel, etc. could improve forecast precision, specifically for volatile more customers
-
-Some future steps could include:
-- Adjusting the growth rate feature to track growth over different time periods, like 3, 6, and 12 weeks, to capture short-term jumps and steady growth. 
-- Adding new features such as how often orders are increasing, how quickly orders are happening, and changes in order size can highlight customers on a growth path.
-- Grouping customers by trade channel, order type, or how long they've been a customer can also make it easier to spot high-growth pattern
-
-### Approach 4
 ##### Forecasting Data Preparation
 
 Since XGBoost requires numerical values, all categorical variables were turned into factors so they could be encoded later. Columns I thought were unnecessary were removed to simplify the dataset. To help the model recognize patterns, several new features were added. Date-based features like week, month, and quarter were created to help capture seasonal trends. Lag features (lag_1, lag_4, lag_6) were added to give the model information about recent orders, helping it detect short-term changes. Rolling averages (rolling_avg_3 and rolling_avg_6) were included to smooth out order patterns and reduce noise, and a growth_rate feature was added to measure customer momentum by comparing recent orders to past orders. To better predict behavior for different customer types, a new_customer flag was created to separate new customers from established ones to help the model handle each group’s unique behaviors.
@@ -1888,7 +1522,9 @@ df_grouped_week[is.na(weekly_delivered_total), weekly_delivered_total := 0]
 df_grouped_week <- merge(df_grouped_week, features, by = "customer_number", all = TRUE)
 ```
 
+
 ##### Feature Engineering
+
 ```{r}
 # newer vs. existing customers using first delivery date
 # new vs. existing cutoff
@@ -1928,6 +1564,7 @@ df_grouped_week[is.infinite(growth_rate) | is.na(growth_rate), growth_rate := 0]
 
 
 ##### Create train and test data - Older Customers
+
 ```{r}
 # split data based on time
 train <- df_grouped_week[new_customer == FALSE & transaction_week < "2024-7-1"]
@@ -1968,6 +1605,7 @@ dtest  <- xgb.DMatrix(data = x_test, label = y_test, missing = NA)
 ```
 
 ##### Model Training - Older Customers
+
 ```{r}
 params_reg <- list(
   objective = "reg:squarederror",
@@ -1981,7 +1619,6 @@ params_reg <- list(
   eval_metric = c("rmse", "mae")
 )
 
-
 model <- xgb.train(
   params = params_reg,
   data = dtrain,
@@ -1992,6 +1629,7 @@ model <- xgb.train(
 ```
 
 ##### Create train and test data - New Customers
+
 ```{r}
 # split data based on time
 train_new <- df_grouped_week[new_customer == TRUE & transaction_week < "2024-7-1"]
@@ -2032,6 +1670,7 @@ dtest_new  <- xgb.DMatrix(data = test_new, label = y_test_new, missing = NA)
 ```
 
 ##### Model Training - New Customers
+
 ```{r}
 params_new <- list(
   objective = "reg:squarederror",
@@ -2055,6 +1694,7 @@ model_new <- xgb.train(
 ```
 
 ##### Predictions and Performance - Older Customers
+
 ```{r}
 # predict
 predictions <- predict(model, dtest)
@@ -2070,6 +1710,7 @@ print(paste("MAE:", mae_score))
 
 
 ##### Predictions and Performance - New Customers
+
 ```{r}
 # predict
 predictions_new <- predict(model_new, dtest_new)
@@ -2084,6 +1725,7 @@ print(paste("MAE:", mae_score_new))
 ```
 
 ##### Key variables 
+
 ```{r}
 # older customers
 importance <- xgb.importance(feature_names = colnames(x_train), model = model)
@@ -2096,8 +1738,42 @@ importance_new <- xgb.importance(feature_names = colnames(x_train_new), model = 
 xgb.plot.importance(importance_new)
 setorder(importance_new, -Importance)
 importance_new
+
 ```
 
+In the fulfillment clustering model, cluster 3 contained the majority of our data and was identified as representing typical small to medium-sized business buyers. These businesses, depending on their industry and operations, often have greater potential for growth or change compared to corporate buyers.
+
+To analyze their fulfillment patterns, I split this cluster into two separate datasets:
+
+- Gallons Dataset – Includes customer fulfillment rate in gallons along with their returns.
+- Cases Dataset – Includes customer fulfillment rate in cases along with their returns.
+
+By leveraging this clustered fullfillment information, Swire’s sales team can identify customers who are selling more than they order and prioritize those with the highest potential for growth. This allows them to focus time and resources on businesses that would benefit from additional support, ultimately strengthening customer relationships and increasing sales opportunities. 
+
+
+### Insights
+
+Since older and new customers behave differently, separate models were built for each group. Since categorical data (like trade channels) was important, those features were converted into dummy variables so the model could use them effectively. Both models used XGBoost with the same hyperparameters. The hyperparameters were adjusted numerous times to improve performance, but due to time constraints, the following hyperparameters were chosen for the best performance:
+
+max_depth = 6 to control complexity
+min_child_weight = 5 to prevent overly small data splits
+subsample = 0.8 to improve generalization
+colsample_bytree = 0.7 to randomly sample features and reduce overfitting
+
+For older customers, the model achieved an RMSE of 22.24 and an MAE of 4.78, demonstrating good predictive accuracy with relatively low error values. This result suggests that the model effectively captured established customer behavior. For new customers, the model's performance was less optimal, with an RMSE of 38.59 and an MAE of 6.54. This higher error is expected given the limited transaction history available for these customers. The difference in performance highlights the difficulty in forecasting for new customers, where limited historical data introduces more volatility and noise.
+
+While the current forecast models perform okay, several enhancements could further improve forecasting accuracy. Additionally, while this model is focused on forecasting future orders, more needs to be done to be able to identify "high-growth" customers. 
+
+Some general future model enhancements could include:
+
+- Exploring additional/separate hyperparameter tuning for each model (new and more established customers)
+- Exploring dynamic lag features for individual customer segments like trade channel, cold drink channel, etc. could improve forecast precision, specifically for volatile more customers
+
+Some future steps could include:
+
+- Adjusting the growth rate feature to track growth over different time periods, like 3, 6, and 12 weeks, to capture short-term jumps and steady growth. 
+- Adding new features such as how often orders are increasing, how quickly orders are happening, and changes in order size can highlight customers on a growth path.
+- Grouping customers by trade channel, order type, or how long they've been a customer can also make it easier to spot high-growth pattern
 
 
 ## Conclusion
