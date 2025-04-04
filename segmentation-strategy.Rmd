@@ -1,0 +1,355 @@
+---
+title: "Delivery Standardization"
+subtitle: "Swire Segmentation Strategy | IS 6813"
+---
+
+
+```{r}
+library('tidyverse')
+
+swire_full <- readRDS('data/swire_data_full.Rds')
+customer_neighbor_fields <- read.csv('data/customer_neighbor_fields.csv') |>
+    mutate(customer_number = as.character(customer_number))
+```
+
+
+## Aggregate to a customer level of detail
+
+```{r}
+swire_cust_grp <-
+    swire_full |>
+    group_by(
+        pick(customer_number:lon, return_frequency, year),
+    ) |>
+    summarise(
+        order_transactions = sum(ifelse(ordered_total > 0, 1, 0)), 
+        order_transaction_std = sd(ordered_total), 
+        delivery_transactions = sum(ifelse(delivered_total > 0, 1, 0)), 
+        across(ordered_cases:delivered_total, ~ sum(.x))
+    ) |>
+    ungroup()
+```
+
+```{r}
+swire_cust_uniq <- 
+    swire_cust_grp |>
+    pivot_wider(
+        id_cols = c(customer_number:primary_group_number, on_boarding_date:lon), 
+        names_from = year, 
+        values_from = c(primary_group_customers, return_frequency:delivered_total), 
+        names_glue = "{.value}_{year}", 
+        values_fill = 0
+    )
+    
+swire_cust_clean <- 
+    swire_cust_uniq |>
+    replace_na(list(
+        order_transaction_std_2023 = mean(swire_cust_uniq$order_transaction_std_2023, na.rm = TRUE), 
+        order_transaction_std_2024 = mean(swire_cust_uniq$order_transaction_std_2024, na.rm = TRUE), 
+        delivered_gallons_cost_2023 = 0, 
+        delivered_gallons_cost_2024 = 0, 
+        delivered_cases_cost_2023 = 0,
+        delivered_cases_cost_2024 = 0
+
+    )) |>
+    select(-c(city, zip, state_abbr, county))
+```
+
+
+```{r}
+swire_cust_enriched <- 
+    swire_cust_clean |>
+    inner_join(customer_neighbor_fields) |>
+    mutate(
+        across(c(on_boarding_date, first_delivery_date), as.Date), 
+        across(c(customer_number, primary_group_number), as.character), 
+        across(c(co2_customer, local_market_partner), as.integer), 
+        customer_tenure_yrs = round(as.integer(lubridate::ymd("2024-12-31") - first_delivery_date) / 365.25, 1), 
+        ramp_up_mon = round(as.integer(first_delivery_date - on_boarding_date) * 12 / 365.25, 1),
+        annual_total = (ordered_total_2023 + ordered_total_2024) / 2,
+        avg_transaction_amt = ifelse(
+            (order_transactions_2023 + order_transactions_2024) <= 0, 0,
+            (ordered_total_2023 + ordered_total_2024) / (order_transactions_2023 + order_transactions_2024)
+        ), 
+        avg_neighbor_transaction_amt = (neighbor_avg_ordered_total_2023 + neighbor_avg_ordered_total_2024) / (neighbor_avg_order_transactions_2023 + neighbor_avg_order_transactions_2024)
+    ) |>
+    select(-c(on_boarding_date, first_delivery_date))
+```
+
+
+## Derive RED vs WHITE
+
+```{r}
+swire_segmentation <- 
+    swire_cust_enriched |>
+    mutate(
+        # CRITERIA
+        # Automatically white truck
+        avoid = (
+            trade_channel %in% c("SPECIALIZED GOODS", "PROFESSIONAL SERVICES", "VEHICLE CARE", "MOBILE RETAIL", "OUTDOOR ACTIVITIES") 
+            & avg_transaction_amt < 9
+        ), 
+        # Automatically red truck
+        fairly_new = customer_tenure_yrs <= 1, 
+        # "Growth conducive customer profiles"
+        big_box = (
+            trade_channel %in% c("SUPERSTORE", "BULK TRADE", "GENERAL RETAILER") 
+            & frequent_order_type %in% c("EDI", "SALES REP")
+        ),
+        niche_outlets = (
+            trade_channel %in% c("RECREATION", "TRAVEL") 
+            & frequent_order_type %in% c("SALES REP", "EDI", "MYCOKE LEGACY")
+        ), 
+        convenience_staples  = (
+            trade_channel %in% c("FAST CASUAL DINING", "GENERAL") 
+            & frequent_order_type %in% c("EDI", "MYCODE LEGACY", "SALES REP", "OTHER")), 
+        # "Growth condusive markets"
+        avg_tx_amt_flag = avg_transaction_amt >= 25, 
+        larger_neighbors_flag = avg_neighbor_transaction_amt >= 25, 
+
+        # SEGMENTATION LOGIC
+        segment = case_when(
+            avoid ~ "WHITE TRUCK", 
+            fairly_new ~ "RED TRUCK", 
+            ((big_box + niche_outlets + convenience_staples) > 0 
+            | (avg_tx_amt_flag + larger_neighbors_flag)) > 0 ~ "RED TRUCK", 
+            TRUE ~ "WHITE TRUCK"
+        )
+    )
+
+```
+
+In the above, we derive RED TRUCK customers via two lenses:
+
+1. Growth conducive markets (customers or their average neighbors need 25+ average transaction amounts)
+2. Growth conducive customer profiles (combination of characteristics that align with RED TRUCK material)
+
+Customers have to either be in a growth conducive market or fit into at least one of the above profiles.
+
+The below will calculate the number of customers for each group and key summary metrics:
+
+```{r}
+swire_segmentation |>
+    group_by(segment) |>
+    summarise(
+        n = n(), 
+        total_volume = sum(annual_total),
+        avg_annual_transactions = median((order_transactions_2023 + order_transactions_2024) / 2),
+        avg_annual_volume = median((ordered_total_2023 + ordered_total_2024) / 2), 
+        avg_transaction = median(avg_transaction_amt), 
+        avg_neighbor_annual_volume = median((neighbor_avg_ordered_total_2023 + neighbor_avg_ordered_total_2024) / 2), 
+    ) |>
+    ungroup() |>
+    mutate(
+        n_perc = n / sum(n), 
+        vol_perc = total_volume / sum(total_volume)
+    ) |>
+    select(segment, n, n_perc, total_volume, vol_perc, avg_annual_transactions, avg_annual_volume, avg_transaction, avg_neighbor_annual_volume)
+```
+
+
+
+## Estimate Business Potential
+
+### Get a 2025 gallons + cases estimate
+
+```{r}
+swire_2025_est <- 
+    swire_segmentation |>
+    mutate(tenure_slice = cut(customer_tenure_yrs, 4)) |>
+    group_by(
+        trade_channel
+    ) |>
+    mutate(
+        growth_23_24 = sum(ordered_total_2024) / sum(ordered_total_2023)
+    ) |>
+    ungroup() |>
+    mutate(
+        ovr_growth_23_24 = sum(ordered_total_2024) / sum(ordered_total_2023), 
+        assumed_growth_rate = ifelse(growth_23_24 == Inf, ovr_growth_23_24, growth_23_24)
+    ) |>
+    mutate(
+        ordered_total_2025_est = ifelse(ordered_total_2024 > 0, assumed_growth_rate * ordered_total_2024, 0), 
+        delivered_total_2025_est = ifelse(delivered_total_2024 > 0, assumed_growth_rate * delivered_total_2024, 0), 
+        delivered_cost_2025_est = ifelse(delivered_total_2024 > 0, delivered_total_2025_est * (delivered_cases_cost_2024 + delivered_gallons_cost_2024) / delivered_total_2024, 0), 
+        across(ordered_total_2025_est:delivered_total_2025_est, ~round(., 1))
+    )
+```
+
+Confirm the increase!
+
+```{r}
+sum(swire_2025_est$ordered_total_2025_est) / sum(swire_2025_est$ordered_total_2024)
+sum(swire_2025_est$delivered_total_2025_est) / sum(swire_2025_est$delivered_total_2024)
+sum(swire_2025_est$delivered_cost_2025_est) / sum(swire_2025_est$delivered_cases_cost_2024 + swire_2025_est$delivered_gallons_cost_2024)
+```
+
+Growth is around 39% overall. Sweet!
+
+
+### Potential
+
+```{r}
+swire_2025_est |>
+  mutate(order_over_400 = ordered_total_2024 >= 400) |>
+  filter(segment == 'WHITE TRUCK' & order_over_400) |>
+  summarise(tot_2025 = sum(delivered_cost_2025_est))
+```
+
+
+
+### Opportunity Costs
+
+The 2025 gallons + cases (`ordered_total_2025_est`) routed to white truck. Compare our  strategy (`segment`) to Swire's incumbent 400-gal threshold.
+
+```{r}
+swire_2025_est |>
+  mutate(order_over_400 = ordered_total_2024 >= 400) |>
+  group_by(order_over_400) |>
+  summarise(tot_2025 = sum(ordered_total_2025_est))
+  
+```
+
+
+### Delivery Costs
+
+The 2025 delivery costs (`delivered_cost_2025_est`) routed to white truck. Compare our  strategy (`segment`) to Swire's incumbent 400-gal threshold.
+
+```{r}
+swire_2025_est |>
+  mutate(order_over_400 = ordered_total_2024 >= 400) |>
+  group_by(segment) |>
+  summarise(tot_2025 = sum(delivered_cost_2025_est))
+```
+
+
+### Labor hours servicing account
+
+Have to create some assumptions. Worked with ChatGPT (4o model) using the following prompt:
+
+> I'm working on a project where I want to estimate the number of labor hours a company supports a client account across sales and customer service departments annually. I need to have a heuristic of labor hours for each customer. Give me some industry benchmarks for the food and beverage wholesaler industry (i.e. a Pepsi selling to a restaurant) for the range of labor hours spent annually for sales and customer service needs of the account.
+
+
+This is the table of results:
+
+
+| **Customer Tier**   | **Description**                                | **Sales Labor (hrs/year)** | **Customer Service Labor (hrs/year)** | **Total Labor (hrs/year)** |
+|---------------------|------------------------------------------------|-----------------------------|----------------------------------------|-----------------------------|
+| **Enterprise**      | National/multi-location chains (e.g. Applebee’s) | 40–80                      | 20–40                                 | **60–120**                  |
+| **Mid-Market**      | Large independents or regional chains          | 15–30                      | 10–20                                 | **25–50**                   |
+| **SMB / Long Tail** | Small restaurants, single location             | 2–10                       | 2–10                                  | **4–20**                    |
+
+
+
+So let's generate a look-up table. We'll go with the low estimate here, just to be safe.
+
+```{r}
+lookup <- tibble(
+  tier = c("Enterprise", "Mid-market", "SMB")
+  , sales_labor = c(40, 15, 2)
+  , cx_labor = c(20, 10, 2)
+) |>
+  mutate(
+    tot_labor = sales_labor + cx_labor
+  )
+```
+
+Now we need to derive a tier for each of our the customers. Let's just use percentiles and primary group count. Let's get a sense for the distribution:
+
+```{r}
+quantile(swire_2025_est$annual_total, c(0, 0.25, 0.5, 0.75, 0.95, 0.99))
+```
+
+
+```{r}
+quantile(swire_2025_est$primary_group_customers_2024, c(0, 0.25, 0.5, 0.75, 0.95, 0.99))
+```
+
+
+
+```{r}
+swire_2025_est_tiers <-
+  swire_2025_est |>
+  mutate(
+    tier = case_when(
+      # SMB
+      # These customers have no franchises AND do less than the 75%tile annual volume
+      primary_group_customers_2024 == 0 & annual_total <= 407 ~ "SMB"
+      
+      # Mid-market
+      # These customers have either less than 75%tile franchise count OR annual volume is less than 95%tile
+      , primary_group_customers_2024 <= 23 | annual_total <= 1841  ~ "Mid-market"
+      
+      # Mid-market
+      # These customers have greater than 75%tile franchise count AND annual volume is greater than 95%tile
+      , primary_group_customers_2024 > 23 & annual_total > 1841 ~ "Enterprise"
+      , TRUE ~ "X"
+    ), 
+    tier = factor(tier, levels = c("SMB", "Mid-market", "Enterprise"))
+  )
+
+swire_2025_est_tiers
+```
+
+
+These seem like some pretty decent distributions. Let's go with it. We now just join our lookup table and make a calculation:
+
+```{r}
+swire_tiers <- 
+  swire_2025_est_tiers |>
+  mutate(
+    plus_400 = annual_total >= 400
+  ) |>
+  inner_join(lookup) |>
+  group_by(segment, plus_400, tot_labor, tier) |>
+  summarise(n = n()) |>
+  ungroup() |>
+  mutate(
+    assumed_labor_hrs = tot_labor * n
+  ) 
+```
+
+```{r}
+swire_tiers |>
+  group_by(plus_400) |>
+  summarise(tot = sum(assumed_labor_hrs))
+```
+
+
+```{r}
+swire_tiers |>
+  group_by(segment) |>
+  summarise(tot = sum(assumed_labor_hrs))
+```
+
+
+
+```{r}
+swire_2025_est |>
+  mutate(plus_400 = annual_total >= 400) |>
+  filter(plus_400) |>
+  summarise(
+    vol_2025_est = sum(ordered_total_2025_est), 
+    cost_2025_est = sum(delivered_cost_2025_est), 
+  ) |>
+  mutate(
+    (vol_2025_est / cost_2025_est) * 100
+  )
+```
+```{r}
+swire_2025_est |>
+  mutate(plus_400 = annual_total >= 400) |>
+  filter(segm6ent == 'RED TRUCK') |>
+  summarise(
+    vol_2025_est = sum(ordered_total_2025_est), 
+    cost_2025_est = sum(delivered_cost_2025_est), 
+  ) |>
+  mutate(
+    (vol_2025_est / cost_2025_est) * 100
+  )
+```
+
+
+
+
+
