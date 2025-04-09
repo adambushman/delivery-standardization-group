@@ -339,7 +339,7 @@ swire_2025_est |>
 ```{r}
 swire_2025_est |>
   mutate(plus_400 = annual_total >= 400) |>
-  filter(segm6ent == 'RED TRUCK') |>
+  filter(segment == 'RED TRUCK') |>
   summarise(
     vol_2025_est = sum(ordered_total_2025_est), 
     cost_2025_est = sum(delivered_cost_2025_est), 
@@ -349,7 +349,84 @@ swire_2025_est |>
   )
 ```
 
+```{r}
+
+camcorder::gg_record(
+  dir = "G:/Camcorder", 
+  device = "jpeg", 
+  width = 16, 
+  height = 9, 
+  units = "cm", 
+  dpi = 300
+)
+
+```
+
+```{r}
+
+# Branding colors
+swire_colors <- list(
+  "red" = "#cd0720", 
+  "blue" = "#005398", 
+  "gray" = "#f2f2f2"
+)
+
+theme_swire <- function() {
+    theme(
+    plot.title.position = "plot", 
+
+    plot.background = element_rect(fill = "white", color = NA), 
+    panel.background = element_rect(fill = swire_colors$gray, color = NA), 
+
+    plot.title = element_text(color = swire_colors$red, face = "bold", family = "Poppins"), 
+    plot.subtitle = element_text(face = "italic", family = "Poppins"), 
+    axis.title = element_text(face = "bold", family = "Poppins"), 
+    axis.text = element_text(family = "Poppins"), 
+
+    strip.background = element_rect(fill = swire_colors$blue, color = NA), 
+    strip.text = element_text(color = "white", face = "bold")
+  )
+}
+
+```
 
 
+
+```{r}
+
+ggplot(
+  swire_2025_est, 
+  aes(
+    x = (order_transactions_2023 + order_transactions_2024) / 2
+    , y = avg_transaction_amt
+    , color = segment
+    , size = annual_total
+  )
+) +
+  geom_jitter(
+    alpha = 0.7
+  ) +
+  scale_color_manual(
+    values = c(swire_colors$red, "gray")
+  ) +
+  scale_y_log10() +
+  scale_size_continuous(
+    labels = scales::label_log()
+  ) +
+  labs(
+    title = "Distribution of Customers by Segment", 
+    subtitle = "Comparison across measures of volume and efficiency", 
+    x = "Annual Transactions (count)", 
+    y = "Average Transaction Amount", 
+    size = "Annual Volume", 
+    color = "Segment"
+  ) +
+  theme_swire() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA), 
+    panel.grid = element_line(color = swire_colors$gray, linewidth = 0.5)
+  )
+
+```
 
 
