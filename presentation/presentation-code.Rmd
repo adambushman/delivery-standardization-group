@@ -1,0 +1,434 @@
+---
+title: "Presentation Code | Swire Coca-Cola Capstone Project"
+subtitle: "IS 6813-001, Spring 2025 | Group 3"
+author:
+  - Adam Bushman
+  - Georgia Christodoulou
+  - Tyler Swanson
+  - Zac Mendenhall
+date: "4/7/2025"
+format: 
+    html:
+        css: ../misc/styles.css
+        theme: simplex
+        toc: true
+        embed-resources: true
+toc: true
+---
+
+![](../misc/swire-banner.png)
+
+<br>
+
+
+```{r}
+library('tidyverse')
+
+swire_segmentation <- readRDS('data/derived/swire_customer_segments.Rds')
+```
+
+
+## Summarizing Segments
+
+The below will calculate the number of customers for each group and key summary metrics. These data are included in slides #15-#16.
+
+```{r}
+swire_segmentation |>
+    group_by(segment) |>
+    summarise(
+        n = n(),  # Number of customers in each segment
+        total_volume = sum(annual_total),  # Total volume across all customers in the segment
+        avg_annual_transactions = median((order_transactions_2023 + order_transactions_2024) / 2),  # Median annual order count
+        avg_annual_volume = median((ordered_total_2023 + ordered_total_2024) / 2),  # Median annual ordered volume
+        avg_transaction = median(avg_transaction_amt),  # Median transaction size
+        avg_neighbor_annual_volume = median((neighbor_avg_ordered_total_2023 + neighbor_avg_ordered_total_2024) / 2),  # Median neighbor volume
+    ) |>
+    ungroup() |>
+    mutate(
+        n_perc = n / sum(n),  # Share of customers in this segment
+        vol_perc = total_volume / sum(total_volume)  # Share of total volume from this segment
+    ) |>
+    select(
+        segment, n, n_perc, total_volume, vol_perc, 
+        avg_annual_transactions, avg_annual_volume, avg_transaction, avg_neighbor_annual_volume
+    )
+```
+
+
+## Estimate Business Potential
+
+Part of understanding the potential of our solution over that of the incumbent strategy hinges on an estimate for 2025 (theoretically, what hasn't happened yet). We'll derive that in a fairly nuanced fashion, by using % increase from 2023 to 2024 by `trade_channel`.
+
+### Get a 2025 gallons + cases estimate
+
+```{r}
+swire_2025_est <- 
+    swire_segmentation |>
+    mutate(
+        tenure_slice = cut(customer_tenure_yrs, 4)  # Bin tenure into 4 equal-width ranges
+    ) |>
+    group_by(trade_channel) |>
+    mutate(
+        growth_23_24 = sum(ordered_total_2024) / sum(ordered_total_2023)  # Channel-level growth rate
+    ) |>
+    ungroup() |>
+    mutate(
+        ovr_growth_23_24 = sum(ordered_total_2024) / sum(ordered_total_2023),  # Overall system-wide growth
+        assumed_growth_rate = ifelse(growth_23_24 == Inf, ovr_growth_23_24, growth_23_24)  # Handle divide-by-zero cases
+    ) |>
+    mutate(
+        ordered_total_2025_est = ifelse(
+            ordered_total_2024 > 0, 
+            assumed_growth_rate * ordered_total_2024, 
+            0  # Only project growth if non-zero 2024 volume
+        ), 
+        delivered_total_2025_est = ifelse(
+            delivered_total_2024 > 0, 
+            assumed_growth_rate * delivered_total_2024, 
+            0
+        ), 
+        delivered_cost_2025_est = ifelse(
+            delivered_total_2024 > 0, 
+            delivered_total_2025_est * (delivered_cases_cost_2024 + delivered_gallons_cost_2024) / delivered_total_2024, 
+            0  # Carry forward cost per unit to estimate 2025 costs
+        ), 
+        across(
+            ordered_total_2025_est:delivered_total_2025_est, 
+            ~round(., 1)  # Round 2025 volume estimates for cleaner reporting
+        )
+    )
+```
+
+It's important to confirm the increase.
+
+```{r}
+# Order total increase %
+sum(swire_2025_est$ordered_total_2025_est) / sum(swire_2025_est$ordered_total_2024)
+
+# Delivered total increase %
+sum(swire_2025_est$delivered_total_2025_est) / sum(swire_2025_est$delivered_total_2024)
+
+# Delivered cost increase %
+sum(swire_2025_est$delivered_cost_2025_est) / sum(swire_2025_est$delivered_cases_cost_2024 + swire_2025_est$delivered_gallons_cost_2024)
+```
+
+At ~6-7% YoY, this aligns well to the ~5% from 2023 to 2024. 
+
+
+### Business Potential Perspectives
+
+With that estimate, it's time to calculate comparison values we'll use in the presentation.
+
+
+#### Future Opportunity
+
+This perspective measures the estimated 2025 gallons + cases that were retained in the RED TRUCK program for each strategy that the other would have missed. Swire would prefer the strategy with the higher value since it is preserving the most opportunity potential for the business.
+
+This is included in slide #20.
+
+```{r}
+swire_2025_est |>
+  mutate(
+    order_over_400 = ordered_total_2024 >= 400,  # Flag customers with 2024 volume ≥ 400
+    strategy = case_when(
+        segment == 'WHITE TRUCK' & order_over_400 ~ 'Incumbent',  # Large customers under current strategy
+        segment == 'RED TRUCK' & !order_over_400 ~ 'Proposed'  # Small customers targeted under new strategy
+    )
+  ) |>
+  filter(!is.na(strategy)) |>  # Keep only rows relevant to strategy analysis
+  group_by(strategy) |>
+  summarise(
+    opportunity_2025 = sum(delivered_cost_2025_est)  # Total projected 2025 delivery cost by strategy group
+  )
+```
+
+
+#### Opportunity Cost
+
+This perspective measures the estimated 2025 gallons + cases that were "lost" or rerouted to the WHITE TRUCK program across each strategy. Swire would prefer the strategy with the lower value since opportunity ceded to the WHITE TRUCK program is less optimal.
+
+This is included in slide #38.
+
+```{r}
+swire_2025_est |>
+  mutate(
+    order_over_400 = ordered_total_2024 >= 400  # Flag customers with 2024 volume ≥ 400
+  ) |>
+  summarise(
+    incumbent = sum(ifelse(!order_over_400, ordered_total_2025_est, 0)),  # Projected 2025 volume from sub-400 customers
+    proposed = sum(ifelse(segment == 'WHITE TRUCK', ordered_total_2025_est, 0))  # Projected 2025 volume from WHITE TRUCK segment
+  ) |>
+  select(incumbent, proposed)
+```
+
+
+### Delivery Costs
+
+This perspective measures the estimated 2025 cost of delivery gallons + cases to the those that were rerouted to the WHITE TRUCK program across each strategy. Swire would prefer the strategy with the higher value since delivery costs avoided are dollars saved by Swire.
+
+This is included in slide #39.
+
+```{r}
+swire_2025_est |>
+  mutate(
+    order_over_400 = ordered_total_2024 >= 400  # Flag customers with 2024 volume ≥ 400
+  ) |>
+  summarise(
+    incumbent = sum(ifelse(!order_over_400, delivered_cost_2025_est, 0)),  # Total 2025 cost for sub-400 volume customers
+    proposed = sum(ifelse(segment == 'WHITE TRUCK', delivered_cost_2025_est, 0))  # Total 2025 cost for proposed WHITE TRUCK segment
+  ) |>
+  select(incumbent, proposed)
+```
+
+
+### Labor hours servicing account
+
+This perspective measures the estimated labor hours of servicing WHITE TRUCK accounts in 2025 that would be recouped. Swire would prefer the strategy with the higher value since labor hours not spent on WHITE TRUCK customers are instead leveraged for the RED TRUCK program.
+
+This is included in slide #40.
+
+Have to create some assumptions. Worked with ChatGPT (4o model) using the following prompt:
+
+> I'm working on a project where I want to estimate the number of labor hours a company supports a client account across sales and customer service departments annually. I need to have a heuristic of labor hours for each customer. Give me some industry benchmarks for the food and beverage wholesaler industry (i.e. a Pepsi selling to a restaurant) for the range of labor hours spent annually for sales and customer service needs of the account.
+
+
+This is the table of results:
+
+
+| **Customer Tier**   | **Description**                                | **Sales Labor (hrs/year)** | **Customer Service Labor (hrs/year)** | **Total Labor (hrs/year)** |
+|---------------------|------------------------------------------------|-----------------------------|----------------------------------------|-----------------------------|
+| **Enterprise**      | National/multi-location chains (e.g. Applebee’s) | 40–80                      | 20–40                                 | **60–120**                  |
+| **Mid-Market**      | Large independents or regional chains          | 15–30                      | 10–20                                 | **25–50**                   |
+| **SMB / Long Tail** | Small restaurants, single location             | 2–10                       | 2–10                                  | **4–20**                    |
+
+
+
+So let's generate a look-up table. We'll go with the low estimate here, just to be safe.
+
+```{r}
+lookup <- tibble(
+  tier = c("Enterprise", "Mid-market", "SMB"),  # Customer tiers
+  sales_labor = c(40, 15, 2),  # Estimated sales labor hours per customer
+  cx_labor = c(20, 10, 2)  # Estimated customer experience labor hours per customer
+) |>
+  mutate(
+    tot_labor = sales_labor + cx_labor  # Total labor per customer = sales + CX
+  )
+```
+
+Now we need to derive a tier for each of our the customers. Let's just use percentiles and primary group count. Let's get a sense for the distribution:
+
+```{r}
+quantile(swire_2025_est$annual_total, c(0, 0.25, 0.5, 0.75, 0.95, 0.99))
+```
+
+
+```{r}
+quantile(swire_2025_est$primary_group_customers_2024, c(0, 0.25, 0.5, 0.75, 0.95, 0.99))
+```
+
+
+```{r}
+swire_2025_est_tiers <-
+  swire_2025_est |>
+  mutate(
+    tier = case_when(
+      # SMB
+      # These customers have no franchises AND do less than the 75%tile annual volume
+      primary_group_customers_2024 == 0 & annual_total <= 407 ~ "SMB"
+      
+      # Mid-market
+      # These customers have either less than 75%tile franchise count OR annual volume is less than 95%tile
+      , primary_group_customers_2024 <= 23 | annual_total <= 1841  ~ "Mid-market"
+      
+      # Mid-market
+      # These customers have greater than 75%tile franchise count AND annual volume is greater than 95%tile
+      , primary_group_customers_2024 > 23 & annual_total > 1841 ~ "Enterprise"
+      , TRUE ~ "X"
+    ), 
+    tier = factor(tier, levels = c("SMB", "Mid-market", "Enterprise"))
+  )
+
+swire_2025_est_tiers
+```
+
+
+These seem like some pretty decent distributions. Let's go with it. We now just join our lookup table and make a calculation:
+
+```{r}
+swire_tiers <- 
+  swire_2025_est_tiers |>
+  mutate(
+    plus_400 = annual_total >= 400  # Flag customers with annual volume ≥ 400
+  ) |>
+  inner_join(lookup) |>  # Add labor tier information from lookup table
+  group_by(segment, plus_400, tot_labor, tier) |>
+  summarise(
+    n = n()  # Count number of customers in each group
+  ) |>
+  ungroup() |>
+  mutate(
+    assumed_labor_hrs = tot_labor * n  # Total estimated labor hours = labor per customer * number of customers
+  )
+```
+
+```{r}
+swire_tiers |>
+  summarise(
+    incumbent = sum(ifelse(!plus_400, assumed_labor_hrs, 0)),  # Total labor hours for customers under 400 volume
+    proposed = sum(ifelse(segment == 'WHITE TRUCK', assumed_labor_hrs, 0))  # Total labor hours for proposed WHITE TRUCK segment
+  ) |>
+  select(incumbent, proposed)
+```
+
+
+### Red Truck Program Efficiency
+
+This perspective estimates the efficiency of the RED TRUCK program, by calculating the total 2025 gallons + cases orderd for every $100 of delivery costs. Swire would prefer the strategy with the higher value since higher order volume for the same amount of delivery costs is indicative of higher margins.
+
+This is included in slide #21.
+
+```{r}
+swire_2025_est |>
+  mutate(
+    order_over_400 = ordered_total_2024 >= 400  # Flag customers with 2024 volume ≥ 400
+  ) |>
+  summarise(
+    incumbent_vol = sum(ifelse(order_over_400, ordered_total_2025_est, 0)),  # Projected volume from existing large customers
+    proposed_vol = sum(ifelse(segment == 'RED TRUCK', ordered_total_2025_est, 0)),  # Projected volume from targeted segment
+    incumbent_cost = sum(ifelse(order_over_400, delivered_cost_2025_est, 0)),  # Projected cost from existing large customers
+    proposed_cost = sum(ifelse(segment == 'RED TRUCK', delivered_cost_2025_est, 0))  # Projected cost from targeted segment
+  ) |>
+  mutate(
+    incumbent = (incumbent_vol / incumbent_cost) * 100,  # Volume per $100 of cost for incumbent customers
+    proposed = (proposed_vol / proposed_cost) * 100  # Volume per $100 of cost for RED TRUCK segment
+  ) |>
+  select(incumbent, proposed)
+```
+
+
+## Miscellaneous Vizualizations
+
+```{r}
+# Branding colors
+swire_colors <- list(
+  "red" = "#cd0720", 
+  "blue" = "#005398", 
+  "gray" = "#f2f2f2"
+)
+
+# Custom {ggplot2} theme
+theme_swire <- function() {
+    theme(
+    plot.title.position = "plot", 
+
+    plot.background = element_rect(fill = "white", color = NA), 
+    panel.background = element_rect(fill = swire_colors$gray, color = NA), 
+
+    plot.title = element_text(color = swire_colors$red, face = "bold", family = "Poppins"), 
+    plot.subtitle = element_text(face = "italic", family = "Poppins"), 
+    axis.title = element_text(face = "bold", family = "Poppins"), 
+    axis.text = element_text(family = "Poppins"), 
+
+    strip.background = element_rect(fill = swire_colors$blue, color = NA), 
+    strip.text = element_text(color = "white", face = "bold")
+  )
+}
+```
+
+
+This visualization compares measures of volume against efficiency by segment for our proposal. This visualization is seen on slides #15 and #37.
+
+```{r}
+ggplot(
+  swire_2025_est, 
+  aes(
+    x = (order_transactions_2023 + order_transactions_2024) / 2,  # Average annual transaction count
+    y = avg_transaction_amt,  # Efficiency: average amount per transaction
+    color = segment,  # Segment used for color coding
+    size = annual_total  # Total annual volume used for point size
+  )
+) +
+  geom_jitter(
+    alpha = 0.7  # Add jitter for visibility and transparency to reduce overplotting
+  ) +
+  scale_color_manual(
+    values = c(swire_colors$red, "gray")  # Manual segment color assignment
+  ) +
+  scale_y_log10() +  # Log scale for better distribution of y-axis
+  scale_size_continuous(
+    labels = scales::label_log()  # Label sizes using log scale
+  ) +
+  labs(
+    title = "Distribution of Customers by Segment", 
+    subtitle = "Comparison across measures of volume and efficiency", 
+    x = "Annual Transactions (count)", 
+    y = "Average Transaction Amount", 
+    size = "Annual Volume", 
+    color = "Segment"
+  ) +
+  theme_swire() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # Clean white background
+    panel.grid = element_line(color = swire_colors$gray, linewidth = 0.5)  # Subtle gray gridlines
+  )
+```
+
+
+This visualization seeks to describe how customers who met the incumbent threshold did so in largely inefficient manners. This visualization is seen on slide #28.
+
+```{r}
+swire_segmentation |>
+    mutate(
+        avg_tx_bin = case_when(
+            avg_transaction_amt < 25 ~ "<25", 
+            avg_transaction_amt < 50 ~ "<50", 
+            avg_transaction_amt < 100 ~ "<100", 
+            avg_transaction_amt < 250 ~ "<250", 
+            TRUE ~ "+250"
+        ), 
+        avg_tx_bin = factor(avg_tx_bin, levels = c("<25", "<50", "<100", "<250", "+250"))  # Set custom factor level order
+    ) |>
+    filter(
+        ordered_total_2023 >= 400 | ordered_total_2024 >= 400  # Include only customers who meet volume threshold in either year
+    ) |>
+    group_by(avg_tx_bin, .drop = "groups") |>
+    summarise(
+        n = n()  # Count customers in each bin
+    ) |>
+    mutate(
+        perc = n / sum(n)  # Calculate percent share per bin
+    ) |>
+    ggplot(
+        aes(
+            x = n, 
+            y = forcats::fct_rev(avg_tx_bin),  # Flip bin order for plotting
+            label = paste0(
+                scales::label_comma()(n), " (", 
+                scales::label_percent(accuracy = 1)(perc), ")"  # Display count and percent
+            )
+        )
+    ) +
+    geom_col(
+        aes(fill = ifelse(avg_tx_bin == "<25", swire_colors$red, "gray"))  # Highlight "<25" in red
+    ) +
+    geom_text(
+        aes(
+            hjust = ifelse(perc < 0.2, -0.25, 1.25),  # Push label outside for small bars
+            color = ifelse(avg_tx_bin == "<25", "white", "black")  # Match text color to background
+        ), 
+        fontface = "bold"
+    ) +
+    scale_fill_identity() +
+    scale_color_identity() +
+    labs(
+        title = "Distribution of customers by average transaction amount bin", 
+        subtitle = "Among customers who met incumbent 400-gallon threshold in 2023 or 2024"
+    ) +
+    theme_swire() +
+    theme(
+        axis.title = element_blank(), 
+        axis.text.x = element_blank(), 
+        axis.ticks.y = element_blank()
+    )
+```
