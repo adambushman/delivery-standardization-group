@@ -49,30 +49,31 @@ Adam, Georgia, Tyler, Zac
 
 We've organized our work into folders representing the sequential nature of our work with relevant resources therein. You'll find icons in the below list, with 💡 indicating an *FYI* and 🏃‍♀️ indicating an action to perform. We recommend accessing these resources in the following order:
 
-1. 💡 In the `/problem` directory, review our assessment of the business problem presented by Swire and our initial plan for finding solutions thereto
+1. 💡 In the `/problem` directory, review our assessment of the business problem presented by Swire and our initial plan for finding solutions thereto.
 2. 🏃‍♀️ In the `/data/original` directory, add Swire's version of the original four (4) files (below). Most of the subsequent code files reference these:
     * `customer_address_and_zip_mapping.csv`
     * `customer_profile.csv`
     * `delivery_cost_data.xlsx`
     * `transactional_data.csv`
-3. 💡 In the `/data/derived` directory will be saved extracts throughout the course of our code files to reduce repetitive runtime or make resources available to disparate files.
+3. 💡 Extracts from our code will be saved in the `/data/derived` directory. This was done to reduce repetitive runtime and make resources available to disparate files.
 4. 💡 Be sure to install required packages used throughout code files.
 5. 🏃‍♀️ In the `/prep` directory, leverage our cleaning script to combine the files and set up the basis for ensuing analysis.
 6. 🏃‍♀️ In the `/eda` directory, you may run code that explored the raw and cleaned version of the files, informing how we would model the problem for a solution. 
 7. 🏃‍♀️ In the `/modeling` directory, execute code we wrote to test approaches for modeling the business problem.
 8. 🏃‍♀️ In the `/presentation` directory, you'll find the final presentation and code resources that informed its content, including:
-    * `segmentation-strategy.Rmd` implements the proposed segmentation logic
-    * `presentation-code.Rmd` leverages the resulting segmentation with analysis for the presentation
+    * `segmentation-strategy.Rmd` implements the proposed segmentation logic.
+    * `presentation-code.Rmd` leverages the resulting segmentation with analysis for the presentation.
 
 Below is a diagram of the folders that follow the sequence of our work:
 
 ```mermaid
 graph LR
-A(problem)-->B(data/original);
-B-->C(prep);
-C-->D(eda);
-D-->E(modeling);
-E-->F(presentation);
+classDef node color:#cd0720 stroke:#cd0720 fill:#ffffff
+A(problem):::classDef-->B(data/original):::classDef;
+B-->C(prep):::classDef;
+C-->D(eda):::classDef;
+D-->E(modeling):::classDef;
+E-->F(presentation):::classDef;
 ```
 
 ### Gettings Started with Libraries
@@ -162,7 +163,7 @@ if (length(to_install)) {
 }
 ```
 
-You should now we ready to execute any of the code files in the repository, though we recommend adhering to the order prescribed above.
+You should now be ready to execute any of the code files in the repository, though we recommend adhering to the order prescribed above.
 
 
 ## Repository Overview
@@ -206,75 +207,75 @@ The repository includes various files and directories. Below is a more detailed 
 Below we've included a list of the primary pieces of content included in the presentation and where to find its source code:
 
 * **Average Transaction Amount**
-    * We found this to be a superior measure to annual volume
-    * While referenced in many places, you'll find the content mostly discussed in slides #6 and #28 
-    * You'll find source code for this in `/presentation/presentation-code.Rmd`, lines 377-433
+    * We found this to be a superior measure to annual volume.
+    * While referenced in many places, you'll find the content mostly discussed in slides #6 and #28.
+    * You'll find source code for this in `/presentation/presentation-code.Rmd`, lines 377-433.
 
 * **Customer Characteristics**
-    * These informed our insight that such characteristics are powerful indicators for RED TRUCK material
-    * This content was largely referenced on slides #7-8, #29-30, and #36
-    * You'll find source code for this in `/modeling/group-modeling.Rmd`, lines 380-852
+    * These informed our insight that such characteristics are powerful indicators for RED TRUCK material.
+    * This content was largely referenced on slides #7-8, #29-30, and #36.
+    * You'll find source code for this in `/modeling/group-modeling.Rmd`, lines 380-852.
 
 * **Neighboring Customers**
-    * Summary figures for the performance of the 5 most neighboring customers was found to be a helpful way to approximate local market conditions
-    * This content was largely referenced on slides #9-10 and #31
-    * You'll find source code for this in `/modeling/group-modeling.Rmd`, lines 856-1090
+    * Summary figures for the performance of the 5 most neighboring customers was found to be a helpful way to approximate local market conditions.
+    * This content was largely referenced on slides #9-10 and #31.
+    * You'll find source code for this in `/modeling/group-modeling.Rmd`, lines 856-1090.
 
 * **Segmentation Strategy**
-    * Our proposed strategy for segmenting customers
-    * This content was largely referenced on slides #12-14, and #32-34
-    * You'll find source code for deriving these segments in `/presentation/segmentation-strategy.Rmd`, lines 105-154
-    * You'll find source code for the insight of <1 yr customer tenure in `/presentation/presentation-code.Rmd`, lines 377-443
+    * Our proposed strategy for segmenting customers.
+    * This content was largely referenced on slides #12-14, and #32-34.
+    * You'll find source code for deriving these segments in `/presentation/segmentation-strategy.Rmd`, lines 105-154.
+    * You'll find source code for the insight of <1 yr customer tenure in `/presentation/presentation-code.Rmd`, lines 377-443.
 
 * **Segmentation Strategy**
-    * Our proposed strategy for segmenting customers
-    * This content was largely referenced on slides #12-14, #32-34, and #37
-    * You'll find source code for deriving these segments in `/presentation/segmentation-strategy.Rmd`, lines 105-154
+    * Our proposed strategy for segmenting customers.
+    * This content was largely referenced on slides #12-14, #32-34, and #37.
+    * You'll find source code for deriving these segments in `/presentation/segmentation-strategy.Rmd`, lines 105-154.
 
 * **Segmentation Results**
-    * Our segmentation strategy was summarized in a few measures
-    * This content was largely referenced on slides #15-16
-    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 30-54
+    * Our segmentation strategy was summarized in a few measures.
+    * This content was largely referenced on slides #15-16.
+    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 30-54.
 
 * **Distribution of Customers by Segment**
-    * Our segmentation strategy was visualized between measures of volume and efficiency
-    * This content was seen in slide #15
-    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 339-374
+    * Our segmentation strategy was visualized between measures of volume and efficiency.
+    * This content was seen in slide #15.
+    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 339-374.
 
 * **Future Opportunity**
-    * Our segmentation strategy better captures future opportunity than the incumbent strategy, measured through 2025 gallons + cases retained in RED TRUCK by each strategy while missed from the other
-    * This content was seen in slide #20
-    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 122-142
+    * Our segmentation strategy better captures future opportunity than the incumbent strategy, measured through 2025 gallons + cases retained in RED TRUCK by each strategy while missed from the other.
+    * This content was seen in slide #20.
+    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 122-142.
 
 * **RED TRUCK Program Efficiency**
-    * Our segmentation strategy captures most of the program efficiency seen in the incumbent strategy; this was measured through 2025 gallons + cases volume in RED TRUCK for every $100 of 2025 delivery costs
-    * This content was seen in slide #21
-    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 284-306
+    * Our segmentation strategy captures most of the program efficiency seen in the incumbent strategy; this was measured through 2025 gallons + cases volume in RED TRUCK for every $100 of 2025 delivery costs.
+    * This content was seen in slide #21.
+    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 284-306.
 
 * **Opportunity Cost**
-    * Our segmentation strategy outperforms the incumbent strategy by reducing opportunity cost of rerouting customers to WHITE TRUCK; measured through 2025 gallons + cases volume segmented to WHITE TRUCK
-    * This content was seen in slide #38
-    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 145-161
+    * Our segmentation strategy outperforms the incumbent strategy by reducing opportunity cost of rerouting customers to WHITE TRUCK; measured through 2025 gallons + cases volume segmented to WHITE TRUCK.
+    * This content was seen in slide #38.
+    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 145-161.
 
 * **Delivery Costs**
-    * Our segmentation strategy does well to recoup most the delivery costs seen from the incumbent strategy; measured through delivery of 2025 gallons + cases segmented to WHITE TRUCK
-    * This content was seen in slide #39
-    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 164-180
+    * Our segmentation strategy does well to recoup most the delivery costs seen from the incumbent strategy; measured through delivery of 2025 gallons + cases segmented to WHITE TRUCK.
+    * This content was seen in slide #39.
+    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 164-180.
 
 * **Labor Costs**
-    * Our segmentation strategy does well to recoup most the estimated cost of labor (sales & customer service) needed to support accounts prior to WHITE TRUCK segmentation
-    * This content was seen in slide #40
-    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 183-281
+    * Our segmentation strategy does well to recoup most the estimated cost of labor (sales & customer service) needed to support accounts prior to WHITE TRUCK segmentation.
+    * This content was seen in slide #40.
+    * You'll find source code for these values in `/presentation/presentation-code.Rmd`, lines 183-281.
 
 * **Labor Assumptions**
-    * An assumption for labor was necessary to derive an estimate for the above value
-    * This content was seen in slide #42
-    * You'll find source code for this logic in `/presentation/presentation-code.Rmd`, lines 183-281
+    * An assumption for labor was necessary to derive an estimate for the above value.
+    * This content was seen in slide #42.
+    * You'll find source code for this logic in `/presentation/presentation-code.Rmd`, lines 183-281.
 
 * **Delivery Costs**
-    * The above values rely on an assumption for 2025 volume
-    * This content was seen in slide #41
-    * You'll find source code for this logic in `/presentation/presentation-code.Rmd`, lines 61-114
+    * The above values rely on an assumption for 2025 volume.
+    * This content was seen in slide #41.
+    * You'll find source code for this logic in `/presentation/presentation-code.Rmd`, lines 61-114.
 
 
 ## Stipulation
