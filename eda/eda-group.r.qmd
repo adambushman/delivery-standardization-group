@@ -41,7 +41,6 @@ We begin by setting up our session with the necessary libraries and data provide
 
 ```{r warning = FALSE, message = FALSE}
 
-
 # Load libraries for EDA
 library('tidyverse')  # Data wrangling & visualization
 library('gt')         # Create professional tables
@@ -61,10 +60,10 @@ library('leaflet')    # Generate dynamic map
 
 
 # Read files into session
-transactions <- as.data.frame(data.table::fread("data/transactional_data.csv"))
-customer_address <- read.csv("data/customer_address_and_zip_mapping.csv")
-customer_profile <- read.csv("data/customer_profile.csv")
-delivery_cost <- readxl::read_xlsx('data/delivery_cost_data.xlsx')
+transactions <- as.data.frame(data.table::fread("data/original/transactional_data.csv"))
+customer_address <- read.csv("data/original/customer_address_and_zip_mapping.csv")
+customer_profile <- read.csv("data/original/customer_profile.csv")
+delivery_cost <- readxl::read_xlsx('data/original/delivery_cost_data.xlsx')
 
 ```
 
@@ -102,6 +101,7 @@ theme_swire <- function() {
 Swire Coca-Cola provided us with four (4) files we can use for the project. These include:
 
 ```{r echo = FALSE}
+# Create a table using `gt` to summarize dataset metadata
 gt(tibble(
   file = c(
     "transactional_data", "customer_address_and_zip_mapping", "customer_profile", "delivery_cost_data"
@@ -116,6 +116,8 @@ gt(tibble(
   colnum = c(11, 2, 11, 5), 
   rownum = c(1045540, 1801, 30478, 160)
 )) |>
+  
+  # Rename columns for display purposes
   cols_label(
     file = "Name", 
     description = "Description", 
@@ -123,16 +125,22 @@ gt(tibble(
     colnum = "Columns", 
     rownum = "Rows"
   ) |>
+  
+  # Center-align specific columns for visual consistency
   cols_align(
     align = "center", 
-    columns = c("format", "colnum", "rownum")
+    columns = c("format", "colnum", "rownum")  # Align file format and dimensions
   ) |>
+  
+  # Format numeric columns to show no decimal places
   fmt_number(
-    columns = c("colnum", "rownum"), 
+    columns = c("colnum", "rownum"),  # Apply formatting only to numeric summary columns
     decimals = 0
   ) |>
+  
+  # Customize table styling with a background color for column labels
   tab_options(
-    column_labels.background.color = swire_colors$red, 
+    column_labels.background.color = swire_colors$red  # Apply custom color from palette
   )
 ```
 
@@ -174,64 +182,75 @@ This data set will benefit most from proper data types. Additionally, we can det
 We don't yet have a good sense for 1) the breadth of data longitudinally and 2) what order types exist. Let's solve these with some basic visualizations.
 
 ```{r}
+# Prepare and plot the daily transaction volume over time
 transactions |>
+  
+  # Convert the TRANSACTION_DATE column from character to Date type
   mutate(
-    TRANSACTION_DATE = lubridate::mdy(TRANSACTION_DATE)
+    TRANSACTION_DATE = lubridate::mdy(TRANSACTION_DATE)  # mdy() parses dates in month-day-year format
   ) |>
+  
+  # Group by transaction date and count number of transactions per day
   group_by(TRANSACTION_DATE) |>
   count() |>
-  ungroup() |>
-
+  ungroup() |>  # Remove grouping to simplify plotting
+  
+  # Create a time series line plot of daily transaction counts
   ggplot(
-      aes(TRANSACTION_DATE, n)
+      aes(TRANSACTION_DATE, n)  # Map x to date, y to daily count
     ) +
-    geom_line(color = swire_colors$blue) +
-    geom_smooth(color = swire_colors$red) +
-    scale_x_date() +
+    geom_line(color = swire_colors$blue) +  # Line plot of transaction volume
+    geom_smooth(color = swire_colors$red) +  # Smoothed trend line for easier interpretation
+    scale_x_date() +  # Format the x-axis for dates
     labs(
-      title = "Daily Transaction Volume",  
-      x = "Transaction Date"
+      title = "Daily Transaction Volume",  # Title of the plot
+      x = "Transaction Date"  # Label for the x-axis
     ) +
-    theme_swire() +
+    theme_swire() +  # Apply custom ggplot theme
     theme(
-      axis.title.y = element_blank()
+      axis.title.y = element_blank()  # Remove y-axis title for cleaner look
     )
 ```
 
 There's obviously high variability in the number of transactions per day, but we are seeing a smoothing where the average day per week sees a transaction volume between 1,000 and 2,000. Additionally, it's clear we have two (2) years of transactions: 2023 & 2024.
 
 ```{r}
+# Summarize the number and percentage of transactions by ORDER_TYPE
 order_types <- 
   transactions |>
   group_by(ORDER_TYPE) |>
   count() |>
   ungroup() |>
-  mutate(perc = n / sum(n)) |>
-  arrange(n)
+  mutate(
+    perc = n / sum(n)  # Calculate percent share for each order type
+  ) |>
+  arrange(n)  # Order from smallest to largest count
 
+# Reorder factor levels to match ascending order of counts for plotting
 order_types$ORDER_TYPE = factor(order_types$ORDER_TYPE, levels = order_types$ORDER_TYPE)
 
-  ggplot(
-      order_types, 
-      aes(n, ORDER_TYPE, label = scales::percent_format()(perc))
-    ) +
-    geom_col(fill = swire_colors$red) +
-    geom_text(
-      aes(
-        hjust = ifelse(n < 1e5, -0.1, 1.1), 
-        color = ifelse(n < 1e5, "black", "white"), 
-      )
-    ) +
-    scale_color_identity() +
-    labs(
-      title = "Distribution of `ORDER_TYPE`"
-    ) +
-    theme_swire() +
-    theme(
-      axis.title = element_blank(), 
-      axis.text.x = element_blank(), 
-      axis.ticks.x = element_blank()
+# Create a horizontal bar chart showing the distribution of ORDER_TYPE
+ggplot(
+    order_types, 
+    aes(n, ORDER_TYPE, label = scales::percent_format()(perc))  # Format labels as percentages
+  ) +
+  geom_col(fill = swire_colors$red) +  # Red bars for each order type
+  geom_text(
+    aes(
+      hjust = ifelse(n < 1e5, -0.1, 1.1),  # Adjust horizontal text position based on bar length
+      color = ifelse(n < 1e5, "black", "white")  # Use black text for short bars, white for long
     )
+  ) +
+  scale_color_identity() +  # Use the raw color values from the data without scaling
+  labs(
+    title = "Distribution of `ORDER_TYPE`"  # Plot title
+  ) +
+  theme_swire() +  # Apply custom ggplot theme
+  theme(
+    axis.title = element_blank(),  # Remove axis titles
+    axis.text.x = element_blank(),  # Hide x-axis text
+    axis.ticks.x = element_blank()  # Hide x-axis ticks
+  )
 ```
 
 Okay, we now see there's 6 unique types and some values that indicate `null`. That appears to be a text "null" so that's an opportunity to clean up. There's clearly 3 order types of largest interest:
@@ -276,33 +295,40 @@ One thing we don't have a great sense for right now is where the addresses are l
 We'll first pull out the latitude/longitude values.
 
 ```{r}
+# Split the `full.address` column into multiple geographic components
 addr_exp <- 
   customer_address |>
   separate(
     full.address, 
-    into = c("zip", "city", "state", "state_abbr", "county", "region", "lat", "lon"), 
-    sep = ",", 
-    convert = TRUE
+    into = c("zip", "city", "state", "state_abbr", "county", "region", "lat", "lon"),  # New columns to create
+    sep = ",",  # Split on commas
+    convert = TRUE  # Automatically convert resulting columns to appropriate types (e.g., numeric for lat/lon)
   )
 ```
 
 Then we'll add them to a map:
 
 ```{r}
+# Create an interactive leaflet map showing customer address locations
 swire_map <-                                                              
-    leaflet(height = 800, width = 800) |>
-    addTiles() |>
-    setView(lng = mean(addr_exp$lon), lat = mean(addr_exp$lat), zoom = 5) |>
-    addProviderTiles("CartoDB.Positron") |>
+    leaflet(height = 800, width = 800) |>  # Initialize leaflet map with set dimensions
+    addTiles() |>  # Add default OpenStreetMap tile layer as a base
+    setView(
+        lng = mean(addr_exp$lon),  # Center map horizontally at average longitude
+        lat = mean(addr_exp$lat),  # Center map vertically at average latitude
+        zoom = 5  # Set initial zoom level for a broad regional view
+    ) |>  
+    addProviderTiles("CartoDB.Positron") |>  # Add light-themed basemap from CartoDB
     addCircleMarkers(
-        data = addr_exp,
-        lng = ~lon,
-        lat = ~lat,
-        radius = 6, 
-        color = swire_colors$red, 
-        fillOpacity = 0.75
+        data = addr_exp,  # Use the expanded address dataset
+        lng = ~lon,  # Longitude from data
+        lat = ~lat,  # Latitude from data
+        radius = 6,  # Marker size
+        color = swire_colors$red,  # Marker color using custom palette
+        fillOpacity = 0.75  # Transparency for better visibility when overlapping
     )
 
+# Render the map
 swire_map
 ```
 
@@ -340,37 +366,42 @@ It's likely that a customer belonging to a franchise would be evaluated differen
 Let's see what values/frequency is inherent to `COLD_DRINK_CHANNEL`:
 
 ```{r}
+# Summarize the number and percentage of customers by COLD_DRINK_CHANNEL
 channel <- 
   customer_profile |>
   group_by(COLD_DRINK_CHANNEL) |>
   count() |>
   ungroup() |>
-  mutate(perc = n / sum(n)) |>
-  arrange(n)
+  mutate(
+    perc = n / sum(n)  # Calculate percent share for each channel
+  ) |>
+  arrange(n)  # Order from smallest to largest count
 
+# Reorder factor levels so bars display in ascending order
 channel$COLD_DRINK_CHANNEL = factor(channel$COLD_DRINK_CHANNEL, levels = channel$COLD_DRINK_CHANNEL)
 
-  ggplot(
-      channel, 
-      aes(n, COLD_DRINK_CHANNEL, label = scales::percent_format()(perc))
-    ) +
-    geom_col(fill = swire_colors$red) +
-    geom_text(
-      aes(
-        hjust = ifelse(n < 10000, -0.1, 1.1), 
-        color = ifelse(n < 10000, "black", "white"), 
-      )
-    ) +
-    scale_color_identity() +
-    labs(
-      title = "Distribution of `COLD_DRINK_CHANNEL`"
-    ) +
-    theme_swire() +
-    theme(
-      axis.title = element_blank(), 
-      axis.text.x = element_blank(), 
-      axis.ticks.x = element_blank()
+# Create a horizontal bar chart showing distribution of COLD_DRINK_CHANNEL
+ggplot(
+    channel, 
+    aes(n, COLD_DRINK_CHANNEL, label = scales::percent_format()(perc))  # Show percentage labels
+  ) +
+  geom_col(fill = swire_colors$red) +  # Red bars for each channel
+  geom_text(
+    aes(
+      hjust = ifelse(n < 10000, -0.1, 1.1),  # Position text inside or outside based on count
+      color = ifelse(n < 10000, "black", "white")  # Ensure text is visible on the background
     )
+  ) +
+  scale_color_identity() +  # Use exact color values with no scale transformation
+  labs(
+    title = "Distribution of `COLD_DRINK_CHANNEL`"  # Plot title
+  ) +
+  theme_swire() +  # Apply custom ggplot theme
+  theme(
+    axis.title = element_blank(),  # Remove axis titles
+    axis.text.x = element_blank(),  # Hide x-axis text
+    axis.ticks.x = element_blank()  # Hide x-axis ticks
+  )
 ```
 
 There's 9 different channels, largely dominated by "DINING". Others of interest include "EVENT" and "GOODS". 
@@ -404,25 +435,28 @@ It's notable that the column names are formatted differently. This is an area of
 
 
 ```{r}
+# Ensure the factor order of Cold Drink Channel matches that used in the earlier chart
+delivery_cost$`Cold Drink Channel` = factor(
+  delivery_cost$`Cold Drink Channel`, 
+  levels = channel$COLD_DRINK_CHANNEL  # Use levels from previous summary to ensure consistent ordering
+)
 
-delivery_cost$`Cold Drink Channel` = factor(delivery_cost$`Cold Drink Channel`, levels = channel$COLD_DRINK_CHANNEL)
-
+# Create faceted boxplots showing delivery cost distribution by channel and product type
 ggplot(
   delivery_cost, 
-  aes(`Median Delivery Cost`, `Cold Drink Channel`)
+  aes(`Median Delivery Cost`, `Cold Drink Channel`)  # Map cost to x-axis, channel to y-axis
 ) +
-  geom_boxplot(color = swire_colors$red) +
-  scale_x_continuous(labels = scales::label_currency()) +
-  facet_wrap(~`Applicable To`, nrow = 1, scales = "free") +
+  geom_boxplot(color = swire_colors$red) +  # Red boxplots for visual emphasis
+  scale_x_continuous(labels = scales::label_currency()) +  # Format x-axis as currency
+  facet_wrap(~`Applicable To`, nrow = 1, scales = "free") +  # Create separate plots for each product type
   labs(
-    title = "Distribution of Median Delivery Cost", 
-    subtitle = "By `Cold Drink Channel` and `Product Type`"
+    title = "Distribution of Median Delivery Cost",  # Plot title
+    subtitle = "By `Cold Drink Channel` and `Product Type`"  # Clarify the facets
   ) +
-  theme_swire() +
+  theme_swire() +  # Apply custom ggplot theme
   theme(
-    axis.title = element_blank()
+    axis.title = element_blank()  # Remove axis titles for cleaner appearance
   )
-
 ```
 
 Interestingly, there's some real variance among costs in some `Cold Drink Channels` but less in others. Additionally, it's not consistent between "Bottles and Cans" and "Fountain" products.
@@ -486,21 +520,38 @@ annual_cust_volume <-
 ```
 
 ```{r}
+# Join delivery cost estimates to each customer's annual volume to assign appropriate tiered rates
 delivery_cost_tiers <-
     annual_cust_volume |>
+
+    # Join delivery costs for *case-based* products (excluding Fountain)
     left_join(
-        delivery_cost_expanded |> filter(`Applicable To` != 'Fountain'), 
-        join_by(COLD_DRINK_CHANNEL == `Cold Drink Channel`, annual_cases >= min_vol, annual_cases <= max_vol)
+        delivery_cost_expanded |> 
+            filter(`Applicable To` != 'Fountain'),  # Filter to non-fountain products
+        join_by(
+            COLD_DRINK_CHANNEL == `Cold Drink Channel`,  # Match by drink channel
+            annual_cases >= min_vol,  # Ensure volume falls within the defined min
+            annual_cases <= max_vol   # Ensure volume falls within the defined max
+        )
     ) |>
+
+    # Join delivery costs for *gallon-based* products (only Fountain)
     left_join(
-        delivery_cost_expanded |> filter(`Applicable To` == 'Fountain'), 
-        join_by(COLD_DRINK_CHANNEL == `Cold Drink Channel`, annual_gallons >= min_vol, annual_gallons <= max_vol), 
-        suffix = c(".c", ".g")
+        delivery_cost_expanded |> 
+            filter(`Applicable To` == 'Fountain'),  # Filter only fountain records
+        join_by(
+            COLD_DRINK_CHANNEL == `Cold Drink Channel`,  # Match by drink channel
+            annual_gallons >= min_vol,  # Match gallon volume to range
+            annual_gallons <= max_vol
+        ),
+        suffix = c(".c", ".g")  # Add suffixes to distinguish overlapping column names
     ) |>
+
+    # Select only the relevant fields for output
     select(
         YEAR, CUSTOMER_NUMBER, 
-        case_delivery_cost = `Median Delivery Cost.c`, 
-        gallon_delivery_cost = `Median Delivery Cost.g`
+        case_delivery_cost = `Median Delivery Cost.c`,  # Cost per case delivery
+        gallon_delivery_cost = `Median Delivery Cost.g`  # Cost per gallon delivery
     )
 
 # Take a peek
@@ -704,16 +755,13 @@ gt(filtered_fulfillment_rates) |>
 
 ```
 
-The below plot indicates that Travel, Superstore, and Bulk Trade channels have the highest average total ordered, followed by General Activities
-and Academic Institutions. Other trade channels, including Healthcare, Recreation, and Defense, have lower average total
-ordered values. This comparison highlights that specific channels tend to have a very high average total ordered where others
-are consistently lower.
+The below plot indicates that Travel, Superstore, and Bulk Trade channels have the highest average total ordered, followed by General Activities and Academic Institutions. Other trade channels, including Healthcare, Recreation, and Defense, have lower average total ordered values. This comparison highlights that specific channels tend to have a very high average total ordered where others are consistently lower.
 
 ```{r}
 # Aggregate data to calculate the average total ordered per trade channel
 top_trade_channels <- swire_data_full %>%
  group_by(trade_channel) %>%
- # summarise(AVG_TOTAL_ORDERED = mean(ordered_cases + ordered_gallons, na.rm = TRUE)) %>%
+ summarise(AVG_TOTAL_ORDERED = mean(ordered_cases + ordered_gallons, na.rm = TRUE)) %>%
  summarise(AVG_TOTAL_ORDERED = mean(ordered_total, na.rm = TRUE)) %>%
  arrange(desc(AVG_TOTAL_ORDERED)) %>%
  slice_head(n = 20) # Select top 10 trade channels
@@ -792,29 +840,47 @@ swire_data_full %>%
 The graphs below indicate that Dining and Goods are the primary cold drink channels for customers with a volume of less than 400 gallons, whereas Bulk Trade and Dining dominate across all customers. This distinction suggests that conducting a separate 'Dining' cold drink channel analysis could be valuable in comparing the characteristics and ordering behaviors between customers below and above the 400-gallon threshold.
 
 ```{r}
-# for all customers
+# Plot total gallons ordered by channel
 swire_data_full %>%
   group_by(cold_drink_channel) %>%
-  summarize(gallons = sum(ordered_gallons + ordered_cases)) %>%
-  ggplot(aes(x = reorder(cold_drink_channel, - gallons), y = gallons, fill = cold_drink_channel)) +
-  geom_bar(stat = "identity") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  summarize(
+    gallons = sum(ordered_gallons + ordered_cases)  # Combine gallons and cases into a total volume
+  ) %>%
+  ggplot(aes(
+    x = reorder(cold_drink_channel, -gallons),  # Reorder bars by descending volume
+    y = gallons, 
+    fill = cold_drink_channel  # Use color to differentiate channels
+  )) +
+  geom_bar(stat = "identity") +  # Use raw values (not counts) for bar height
+  theme_minimal() +  # Apply clean minimal theme
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Tilt x-axis labels for readability
+  ) +
   ggtitle("Barplot of Ordered Gallons by Cold Drink Channel") +
-  labs(x = "Cold Drink Channel", y = "Total Gallons") 
-  
+  labs(x = "Cold Drink Channel", y = "Total Gallons")
 
-# for customers with < 400 gallons per year
+
+# Plot total gallons for customers with fewer than 400 gallons ordered
 swire_data_full %>%
   group_by(customer_number, cold_drink_channel) %>%
-  summarize(total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)) %>%
-  filter(total_gallons < 400) %>% 
-  group_by(cold_drink_channel) %>% 
-  summarize(gallons = sum(total_gallons)) %>%
-  ggplot(aes(reorder(cold_drink_channel, - gallons), y = gallons, fill = cold_drink_channel)) +
+  summarize(
+    total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)  # Sum volume per customer/channel
+  ) %>%
+  filter(total_gallons < 400) %>%  # Filter to small-volume customers
+  group_by(cold_drink_channel) %>%
+  summarize(
+    gallons = sum(total_gallons)  # Aggregate across small-volume customers
+  ) %>%
+  ggplot(aes(
+    reorder(cold_drink_channel, -gallons),  # Reorder bars by descending volume
+    y = gallons, 
+    fill = cold_drink_channel
+  )) +
   geom_bar(stat = "identity") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
   ggtitle("Ordered Gallons by Cold Drink Channel (Customers < 400 Gallons)") +
   labs(x = "Cold Drink Channel", y = "Total Gallons")
 ```
@@ -826,7 +892,7 @@ The table below presents order volume and unit delta from 2023 to 2024 by custom
 Additionally, the Fast Casual Dining trade channel stands out with notable year-over-year increases in order volume. This suggests that Fast Casual Dining customers within the local market partner segment could represent less obvious but high-growth potential opportunities, making them a strategic group to explore further.
 
 ```{r}
-# year over year changes in gallon volume by customer
+# Year over year changes in gallon volume by customer
 swire_data_full %>%
   filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
   group_by(customer_number, year, trade_channel, sub_trade_channel) %>%
@@ -841,32 +907,58 @@ The graphs below illustrate the distribution of order types among local market p
 While this difference may not seem highly significant, the shift in order type preference for customers with < 400 gallons—both in the local market partner segment and across all customers—could indicate that this variable holds some importance in customer behavior.
 
 ```{r}
-# for all local market partner customers
+# For all local market partner customers
 swire_data_full %>%
   filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
   group_by(order_type) %>%
-  summarize(gallons = sum(ordered_gallons + ordered_cases)) %>%
-  ggplot(aes(x = reorder(order_type, -gallons), y = gallons, fill = order_type)) +
-  geom_bar(stat = "identity") +
+  summarize(
+    gallons = sum(ordered_gallons + ordered_cases)  # Combine gallons and cases into total volume
+  ) %>%
+  ggplot(aes(
+    x = reorder(order_type, -gallons),  # Reorder bars by descending volume
+    y = gallons, 
+    fill = order_type
+  )) +
+  geom_bar(stat = "identity") +  # Use actual values for bar height
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Tilt x-axis labels for readability
+  ) +  
   ggtitle("Barplot of Ordered Gallons by Order Type") +
-  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+  labs(
+    title = "Total Ordered Cases by Order Type", 
+    x = "Order Type", 
+    y = "Total Cases"
+  )
 
-# for customers with < 400 gallons per year
+# For customers with < 400 gallons per year
 swire_data_full %>%
   filter(local_market_partner == TRUE & co2_customer == FALSE) %>%
   group_by(customer_number, order_type) %>%
-  summarize(total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)) %>%
-  filter(total_gallons < 400) %>% 
-  group_by(order_type) %>% 
-  summarize(gallons = sum(total_gallons)) %>%
-  ggplot(aes(x = reorder(order_type, -gallons), y = gallons, fill = order_type)) +
+  summarize(
+    total_gallons = sum(ordered_gallons + ordered_cases, na.rm = TRUE)  # Sum volume by customer/order type
+  ) %>%
+  filter(total_gallons < 400) %>%
+  group_by(order_type) %>%
+  summarize(
+    gallons = sum(total_gallons)  # Aggregate total gallons for small-volume customers
+  ) %>%
+  ggplot(aes(
+    x = reorder(order_type, -gallons), 
+    y = gallons, 
+    fill = order_type
+  )) +
   geom_bar(stat = "identity") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +  
   ggtitle("Barplot of Ordered Gallons by Order Type (Customers < 400 Gallons)") +
-  labs(title = "Total Ordered Cases by Order Type", x = "Order Type", y = "Total Cases")
+  labs(
+    title = "Total Ordered Cases by Order Type", 
+    x = "Order Type", 
+    y = "Total Cases"
+  )
 ```
 
 
@@ -904,16 +996,18 @@ CO2 customers are an interesting subset of the data. We can look at customers wh
 ```{r}
 swire_data_full |>
   group_by(co2_customer, customer_number, local_market_partner) |>
-  summarise(total = sum(ordered_gallons)) |>
+  summarise(
+    total = sum(ordered_gallons)  # Sum total gallons per customer
+  ) |>
   ungroup() |>
-  filter(total > 0) |>
+  filter(total > 0) |>  # Exclude customers with zero volume
 
   ggplot(
-    aes(x = local_market_partner, total)
+    aes(x = local_market_partner, total)  # Compare total volume by LMP status
   ) +
-    geom_boxplot(color = swire_colors$red) +
-    scale_y_log10() +
-    facet_wrap(~co2_customer) +
+    geom_boxplot(color = swire_colors$red) +  # Red boxplots
+    scale_y_log10() +  # Log scale to account for skewed volume distribution
+    facet_wrap(~co2_customer) +  # Separate plots for CO2 vs non-CO2 customers
     labs(
       title = "Distribution of Total Volume Among 'Fountain' Products", 
       subtitle = "Grouped by status as a CO2 customer", 
@@ -921,7 +1015,7 @@ swire_data_full |>
     ) +
     theme_swire() +
     theme(
-      axis.title.y = element_blank()
+      axis.title.y = element_blank()  # Omit y-axis title for cleaner look
     )
 ```
 
@@ -934,22 +1028,23 @@ An interesting component to this analysis is varying levels of tenure, where som
 
 
 ```{r}
-
 swire_data_full |>
   group_by(customer_number) |>
   summarise(
-    tenure_years = floor(max(as.integer(transaction_date - on_boarding_date) / 365)), 
-    total = sum(ordered_total)
+    tenure_years = floor(max(as.integer(transaction_date - on_boarding_date) / 365)),  # Calculate tenure in full years
+    total = sum(ordered_total)  # Total volume per customer
   ) |>
   ungroup() |>
-  mutate(tenure_years = as.factor(tenure_years)) |>
+  mutate(
+    tenure_years = as.factor(tenure_years)  # Convert tenure to factor for discrete x-axis
+  ) |>
 
   ggplot(
-    aes(tenure_years, total)
+    aes(tenure_years, total)  # Compare volume across tenure groups
   ) +
-    geom_boxplot(color = swire_colors$red) +
-    scale_x_discrete() +
-    scale_y_log10() +
+    geom_boxplot(color = swire_colors$red) +  # Red boxplots
+    scale_x_discrete() +  # Ensure tenure groups appear as categories
+    scale_y_log10() +  # Log scale for better visibility of spread
     labs(
       title = "Distribution of Total Volume", 
       subtitle = "Organized by tenure and order type"
@@ -963,18 +1058,20 @@ Predictably, customers with less tenure than our two (2) year window will have l
 swire_data_full |>
   group_by(customer_number, order_type) |>
   summarise(
-    tenure_years = floor(max(as.integer(transaction_date - on_boarding_date) / 365)), 
-    total = sum(ordered_total)
+    tenure_years = floor(max(as.integer(transaction_date - on_boarding_date) / 365)),  # Calculate full years of tenure
+    total = sum(ordered_total)  # Total volume per customer/order type
   ) |>
   ungroup() |>
-  mutate(tenure_years_bin = as.factor(cut(tenure_years, breaks = 4))) |>
+  mutate(
+    tenure_years_bin = as.factor(cut(tenure_years, breaks = 4))  # Bin tenure into 4 equal-width ranges and convert to factor
+  ) |>
 
   ggplot(
-    aes(tenure_years_bin, total)
+    aes(tenure_years_bin, total)  # Plot volume by tenure bin
   ) +
-    geom_boxplot(color = swire_colors$red) +
-    scale_y_log10() +
-    facet_wrap(~order_type) +
+    geom_boxplot(color = swire_colors$red) +  # Red boxplots
+    scale_y_log10() +  # Log scale to account for skew
+    facet_wrap(~order_type) +  # Separate plots by order type
     labs(
       title = "Distribution of Total Volume", 
       subtitle = "Organized by tenure and order type"
@@ -989,31 +1086,36 @@ We see here that there really isn't any pattern for time/tenure playing into the
 
 We can also get a sense for concentration of orders by geography. We'll build off of the map we created above but scale the size of the points to the volume of orders.
 
-
 ```{r}
 swire_cust_vol <- 
   swire_data_full |>
   group_by(customer_number, lon, lat, local_market_partner) |>
-  summarise(total = sum(ordered_total)) |>
+  summarise(
+    total = sum(ordered_total)  # Total ordered volume per customer
+  ) |>
   ungroup() |>
   mutate(
-    total_scaled = (total / max(total)) * 100
+    total_scaled = (total / max(total)) * 100  # Scale volume to 0–100 range for visualization
   )
 ```
 
 ```{r}
 swire_map_vol <-                                                              
-    leaflet(height = 800, width = 800) |>
-    addTiles() |>
-    setView(lng = mean(swire_cust_vol$lon), lat = mean(swire_cust_vol$lat), zoom = 5) |>
-    addProviderTiles("CartoDB.Positron") |>
+    leaflet(height = 800, width = 800) |>  # Initialize leaflet map with set dimensions
+    addTiles() |>  # Add default OpenStreetMap base tiles
+    setView(
+        lng = mean(swire_cust_vol$lon),  # Center longitude at the mean customer location
+        lat = mean(swire_cust_vol$lat),  # Center latitude at the mean customer location
+        zoom = 5  # Set zoom level for a broad regional view
+    ) |>
+    addProviderTiles("CartoDB.Positron") |>  # Use a clean, minimal basemap
     addCircleMarkers(
         data = swire_cust_vol,
-        lng = ~lon,
-        lat = ~lat,
-        radius = ~sqrt(total_scaled), 
-        color = ~swire_colors$red, 
-        fillOpacity = 0.15
+        lng = ~lon,  # Longitude from dataset
+        lat = ~lat,  # Latitude from dataset
+        radius = ~sqrt(total_scaled),  # Use square root to visually balance the scaled volume
+        color = ~swire_colors$red,  # Use custom red from palette
+        fillOpacity = 0.15  # Low opacity to reduce visual clutter when markers overlap
     )
 
 swire_map_vol
@@ -1059,4 +1161,3 @@ Each member contributed with individual work as described below:
 Thank you,
 
 Adam, Georgia, Tyler, Zac
-
