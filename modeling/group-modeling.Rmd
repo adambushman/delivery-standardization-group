@@ -9,7 +9,7 @@ author:
 date: "3/18/2025"
 format: 
     html:
-        css: styles.css
+        css: ../misc/styles.css
         theme: simplex
         toc: true
         embed-resources: true
@@ -779,7 +779,7 @@ CLARA_LMP <- CLARA %>%
   filter(local_market_partner == 1 & co2_customer == 0)
 
 # Save the dataset for further analysis
-write.csv(CLARA_LMP, "CLARA_LMP.csv", row.names = FALSE)
+# write.csv(CLARA_LMP, "data/derived/CLARA_LMP.csv", row.names = FALSE)
 
 # Check the structure and preview the dataset
 str(CLARA_LMP)

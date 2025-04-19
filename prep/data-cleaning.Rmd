@@ -1,9 +1,25 @@
 ---
-title: "Delivery Standardization"
-subtitle: "Data Cleaning | IS 6813"
-author: "Adam Bushman (u6049169)"
+title: "Data Cleaning | Swire Coca-Cola Capstone Project"
+subtitle: "IS 6813-001, Spring 2025 | Group 3"
+author:
+  - Adam Bushman
+  - Georgia Christodoulou
+  - Tyler Swanson
+  - Zac Mendenhall
 date: "3/3/2025"
+format: 
+    html:
+        css: ../misc/styles.css
+        theme: simplex
+        toc: true
+        embed-resources: true
+toc: true
 ---
+
+![](../misc/swire-banner.png)
+
+<br>
+
 
 ```{r}
 library('tidyverse')

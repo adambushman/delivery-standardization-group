@@ -1,5 +1,5 @@
 ---
-title: "Presentation Code | Swire Coca-Cola Capstone Project "
+title: "Presentation Code | Swire Coca-Cola Capstone Project"
 subtitle: "IS 6813-001, Spring 2025 | Group 3"
 author:
   - Adam Bushman
@@ -7,10 +7,11 @@ author:
   - Tyler Swanson
   - Zac Mendenhall
 date: "4/7/2025"
-output:
-    html_document:
+format: 
+    html:
+        css: ../misc/styles.css
         theme: simplex
-        self_contained: true
+        toc: true
         embed-resources: true
 toc: true
 ---

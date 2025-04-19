@@ -174,7 +174,9 @@ The repository includes various files and directories. Below is a more detailed 
 	|-- 📄 README.md
 	|-- 📁 presentation
 		|-- 📄 final-presentation.pdf
+		|-- 📄 presentation-code.html
 		|-- 📄 presentation-code.Rmd
+		|-- 📄 segmentation-strategy.html
 		|-- 📄 segmentation-strategy.Rmd
 		|-- 📁 imgs
 	|-- 📁 modeling
@@ -185,8 +187,10 @@ The repository includes various files and directories. Below is a more detailed 
 		|-- 📄 group-eda.html
 		|-- 📄 group-eda.Rmd
 	|-- 📁 prep
+		|-- 📄 data-cleaning.html
 		|-- 📄 data-cleaning.Rmd
 	|-- 📁 data
+	    |-- 📄 README.md
 		|-- 📁 derived
 		|-- 📁 original
     |-- 📁 problem
