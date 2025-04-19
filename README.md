@@ -67,13 +67,16 @@ We've organized our work into folders representing the sequential nature of our 
 Below is a diagram of the folders that follow the sequence of our work:
 
 ```mermaid
-graph LR
-classDef node color:#cd0720 stroke:#cd0720 fill:#ffffff
-A(problem):::classDef-->B(data/original):::classDef;
-B-->C(prep):::classDef;
-C-->D(eda):::classDef;
-D-->E(modeling):::classDef;
-E-->F(presentation):::classDef;
+flowchart LR
+
+classDef node color:#cd0720,stroke:#cd0720,fill:#ffffff
+
+A(problem)
+A:::node-->B(data/original);
+B:::node-->C(prep);
+C:::node-->D(eda);
+D:::node-->E(modeling);
+E:::node-->F(presentation);
 ```
 
 ### Gettings Started with Libraries
