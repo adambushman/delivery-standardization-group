@@ -28,11 +28,13 @@ The following insights gleaned from our cleaning, analysis, and modeling work in
 * Customer characteristics do well to predict segmentation independent of the target volume threshold, indicating they should play a key role in the strategy
 * Market dynamics are an important component and summarizing the performance of the closest neighboring customers does well to approximate local market conditions
 
-Adoption of this strategy strikes a good balance between capturing future opportunity and preserving an efficient red truck program.
+Adoption of this strategy strikes a good balance between capturing future opportunity and preserving an efficient red truck program. 
 
 <p align="center">
   <img src="misc/segmentation-strategy-3.png" alt="Segmentation Strategy 3" width="45%" />
 </p>
+
+We found this strategy to retain 56% more volume in 2025 than the incumbent strategy, while achieving 86% of the incumbent strategy's RED TRUCK program efficient of 2025 volume per $100 of delivery costs.
 
 We recommend Swire Coca-Cola validate the results of this project with original data sets and implement components thereof to improve the segmentation strategy for delivery model programs. 
 
@@ -43,9 +45,9 @@ Adam, Georgia, Tyler, Zac
 
 ## How to Leverage Our Work
 
-We've organized our work into folders representing the sequential nature of our work with relevant resources therein. You'll find icons in the below list, with 💡 indicating an *FYI* and 🏃‍♀️ indicating an action to perform.
+### Recommended Sequence
 
-We recommend accessing these resources in the following order:
+We've organized our work into folders representing the sequential nature of our work with relevant resources therein. You'll find icons in the below list, with 💡 indicating an *FYI* and 🏃‍♀️ indicating an action to perform. We recommend accessing these resources in the following order:
 
 1. 💡 In the `/problem` directory, review our assessment of the business problem presented by Swire and our initial plan for finding solutions thereto
 2. 🏃‍♀️ In the `/data/original` directory, add Swire's version of the original four (4) files (below). Most of the subsequent code files reference these:
@@ -72,6 +74,8 @@ C-->D(eda);
 D-->E(modeling);
 E-->F(presentation);
 ```
+
+### Gettings Started with Libraries
 
 As mentioned in step #3, to run our code without issue, we highly recommend installing the following packages:
 
@@ -158,6 +162,8 @@ if (length(to_install)) {
 }
 ```
 
+You should now we ready to execute any of the code files in the repository, though we recommend adhering to the order prescribed above.
+
 
 ## Repository Overview
 
@@ -190,7 +196,8 @@ The repository includes various files and directories. Below is a more detailed 
 		|-- 📄 styles.css
 ```
 
-## Content Mapping
+
+## Content Map
 
 Below we've included a list of the primary pieces of content included in the presentation and where to find its source code:
 
@@ -264,3 +271,12 @@ Below we've included a list of the primary pieces of content included in the pre
     * The above values rely on an assumption for 2025 volume
     * This content was seen in slide #41
     * You'll find source code for this logic in `/presentation/presentation-code.Rmd`, lines 61-114
+
+
+## Stipulation
+
+All analyses, insights, and recommendations presented in this repository were developed using the resources provided by Swire, including sanitized datasets, data dictionaries, related documentation, and follow-up Q&A. All findings and proposals are grounded in the data and materials supplied, and reflect interpretations derived solely from those resources.
+
+It is understood that the data provided may have been sanitized or modified for confidentiality or other purposes, and therefore may not fully represent the original source data. As such, Swire is strongly encouraged to validate all insights, figures, and recommendations against their original datasets before pursuing any implementation or business action.
+
+In cases where discrepancies arise between results generated from the repository and those derived from Swire’s original data, we recommend Swire reconcile any inconsistencies. Final implementation should be based on Swire’s informed assessment of actual results and business context.
