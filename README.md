@@ -194,14 +194,13 @@ The repository includes various files and directories. Below is a more detailed 
 		|-- 📄 data-cleaning.html
 		|-- 📄 data-cleaning.Rmd
 	|-- 📁 data
-	    |-- 📄 README.md
 		|-- 📁 derived
 		|-- 📁 original
-        |-- 📁 problem
-            |-- 📄 business-problem-statement.pdf
-        |-- 📁 misc
-	    |-- 📄 swire-banner.png
-	    |-- 📄 styles.css
+    |-- 📁 problem
+        |-- 📄 business-problem-statement.pdf
+    |-- 📁 misc
+        |-- 📄 swire-banner.png
+        |-- 📄 styles.css
 ```
 
 
